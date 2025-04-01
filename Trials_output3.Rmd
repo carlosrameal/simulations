@@ -1,0 +1,627 @@
+---
+title: "Estimator Trials"
+output:
+  html_document: default
+  pdf_document: default
+date: "2025-03-25"
+bibliography: "C:/Users/carlorod/OneDrive - UGent/Documents/My_Library.bib"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(sandwich)   # For Huber-White (robust) standard errors
+library(boot) 
+library(dplyr)
+library(MASS)
+library(doParallel)
+library(reshape2)
+```
+
+```{r,echo=FALSE}
+jackknife_po_fn <- function(data, indices) {
+  # Leave-one-out data
+  Y_loo <- data$Y[indices]
+  X_loo <- as.matrix(data[indices, -1, drop = FALSE])
+  
+  # First-step regressions (partialling out)
+  mY_loo <- lm(Y_loo ~ X_loo[,-1])
+  mX1_loo <- lm(X_loo[,1] ~ X_loo[,-1])
+  
+  # Get residualized variables
+  Y_tilde_loo <- mY_loo$residuals
+  X1_tilde_loo <- mX1_loo$residuals
+  
+  # Second-step regression
+  m2_loo <- lm(Y_tilde_loo ~ X1_tilde_loo - 1)
+  
+  return(coef(m2_loo)[1])  # Return beta estimate
+}
+```
+
+## Linear model with incorrect model specification (n=100, rho=0.5)
+
+### Case for p/n very high (p/n=0.9)
+First we generate a population of n individuals with p regressors: 
+
+```{r model generation}
+set.seed(1)
+n <- 100
+k <- 2.2
+# number of observations per coefficient
+p0 <- floor(n/k) #number of variables
+rho <- 0.6  # Correlation
+Sigma <- matrix(rho, p0, p0)  # Correlation matrix
+diag(Sigma) <- 1  # Set diagonal to 1 for variances
+mu <- rep(0, p0)
+beta <- rep(0.5,p0)
+
+# Generate correlated predictors
+X <- mvrnorm(n, mu, Sigma)  
+
+# Compute response variable
+Y <- X %*% beta + rnorm(n)
+
+# Convert X to a data frame
+data <- as.data.frame(X)
+colnames(data) <- paste0("X", 1:p0)  # Rename columns as X1, X2, ..., Xp0
+
+# Generate squared and cubic terms for a subset of variables
+for (j in 1:floor(p0/3)) {
+  data[[paste0("X", j, "_sq")]] <- data[[paste0("X", j)]]^2
+  data[[paste0("X", j, "_cube")]] <- data[[paste0("X", j)]]^3
+}
+
+# Generate interaction terms for a subset of variables
+for (j in 1:floor((p0-1)/5)) {
+  for (k in (j+1):min(j+2, p0)) {  # Ensure k does not exceed p0
+    data[[paste0("X", j, "_X", k)]] <- data[[paste0("X", j)]] * data[[paste0("X", k)]]
+  }
+}
+
+X_ext <- as.matrix(data)
+p <- dim(X_ext)[2]
+
+
+# Add Y
+data$Y <- Y
+```
+
+We fit first an OLS model with intercept which yields quite bad results:
+```{r OLS model}
+m1 <- lm(Y ~ . , data = data)
+coef(m1)[1:10]
+
+```
+We compute the estimate for X1 when partialling out (FWL theorem).
+```{r}
+
+# Residualize Y and X1 using all other variables (except X1)
+mY <- lm(Y ~ . - X1, data = data)  # Regress Y on everything except X1
+mX1 <- lm(X_ext[,1] ~ . - X1, data = as.data.frame(X_ext))  # Regress X1 on all other predictors
+
+# Get residuals
+Y.tilde <- resid(mY)
+X1.tilde <- resid(mX1)
+
+# Second-stage regression (FWL result)
+m2 <- lm(Y.tilde ~ X1.tilde - 1)  # No intercept
+
+# Plot to check heterokedasticity in the second step regression
+res2 <- resid(m2)
+plot(res2,X1.tilde)
+
+```
+OLS:
+```{r  }
+coef(summary(m1))[2,]
+```
+
+Partialllng out:
+```{r }
+coef(summary(m2))
+```
+
+
+```{r,echo=FALSE}
+# Detect available cores and set up parallelization
+num_cores <- detectCores() - 1  
+cl <- makeCluster(num_cores)
+registerDoParallel(cl)
+
+# Number of simulations
+N.sim <- 1000
+
+# Run simulations in parallel
+results <- foreach(i = 1:N.sim, .combine = rbind, .packages = c("MASS", "sandwich", "boot")) %dopar% {
+  # Generate correlated predictors
+  X <- mvrnorm(n, mu, Sigma)  
+  # Convert X to a data frame
+  data <- as.data.frame(X)
+  colnames(data) <- paste0("X", 1:p0)  # Rename columns as X1, X2, ..., Xp0
+  # Generate squared and cubic terms for a subset of variables
+  for (j in 1:floor(p0/3)) {
+    data[[paste0("X", j, "_sq")]] <- data[[paste0("X", j)]]^2
+    data[[paste0("X", j, "_cube")]] <- data[[paste0("X", j)]]^3
+  }
+  # Generate interaction terms for a subset of variables
+  for (j in 1:floor((p0-1)/5)) {
+    for (k in (j+1):min(j+2, p0)) {  # Ensure k does not exceed p0
+      data[[paste0("X", j, "_X", k)]] <- data[[paste0("X", j)]] * data[[paste0("X", k)]]
+    }
+  }
+  X_ext <- as.matrix(data)
+  p <- dim(X_ext)[2]
+  beta <- rep(0.5,p0)
+  # Compute response variable
+  Y <- X %*% beta + rnorm(n)
+  # Add Y
+  data$Y <- Y
+  
+  # Fit models
+  m1 <- lm(Y ~ . , data = data)
+  mY <- lm(Y ~ . - X1, data = data)  # Regress Y on everything except X1
+  mX1 <- lm(X_ext[,1] ~ . - X1, data = as.data.frame(X_ext))  # Regress X1 on all other predictors
+  Y.tilde <- resid(mY)
+  X1.tilde <- resid(mX1)
+  m2 <- lm(Y.tilde ~ X1.tilde - 1)  # No intercept
+
+  # Extract coefficients and standard errors
+  beta_LR <- coef(summary(m1))[2, 1]
+  SE_LR <- coef(summary(m1))[2, 2]
+  SE_LRHW <- sqrt(diag(vcovHC(m1, type = "HC0"))[2])
+  SE_LRJN <- sqrt(diag(vcovHC(m1, type = "HC3"))[2])
+
+  beta_PO <- coef(summary(m2))[1]
+  SE_PO <- coef(summary(m2))[2]
+  SE_POHW <- sqrt(vcovHC(m2, type = "HC0"))
+  
+  data_list <- data.frame(Y = Y, X_ext)
+  jack_res <- boot(data = data_list, 
+                   statistic = jackknife_po_fn, 
+                   R = n,  
+                   sim = "ordinary")
+  SE_POJN <- sqrt((n - 1) / n * var(jack_res$t))
+  
+  # Return results
+  c(beta_LR, SE_LR, SE_LRHW, SE_LRJN, beta_PO, SE_PO, SE_POHW, SE_POJN)
+}
+
+# Stop parallel cluster
+stopCluster(cl)
+
+# Convert results to a data frame
+results_df <- as.data.frame(results)
+colnames(results_df) <- c("beta.LR", "SE.LR", "SE.LRHW", "SE.LRJN", "beta.PO", "SE.PO", "SE.POHW", "SE.POJN")
+
+```
+
+
+```{r,echo=FALSE}
+results_table <- rbind(
+  Mean = colMeans(results_df, na.rm = TRUE),  
+  SD = apply(results_df, 2, sd, na.rm = TRUE)  
+)
+results_table
+```
+Regardless of the misspecification, the standard s.e. OLS estimator continues to outperform every other by far when p/n is close to one. However, some small bias seems to be present As noted both in the simulations before and in the reference manual, LRHW is often very low, while LRJN and POJN are extremely conservative. The usual PO and POHW are both very low. 
+
+```{r,echo=FALSE}
+# Convert results_df to long format for ggplot
+results_long <- melt(results_df[, c("SE.LR", "SE.LRHW", "SE.LRJN", "SE.PO", "SE.POHW", "SE.POJN")])
+
+# Identify JN SE variables
+JN_vars <- c("SE.LRJN", "SE.POJN")
+
+# Compute the 95th percentile **only** for JN SE variables
+quantiles_JN <- results_long %>%
+  filter(variable %in% JN_vars) %>%
+  group_by(variable) %>%
+  summarise(upper = quantile(value, 0.95, na.rm = TRUE))
+
+# Merge quantiles only for JN variables
+results_filtered <- results_long %>%
+  left_join(quantiles_JN, by = "variable") %>%
+  mutate(value = ifelse(variable %in% JN_vars & value > upper, NA, value)) %>%
+  filter(!is.na(value))  # Remove NA values from JN variables
+
+# Compute the standard deviation of beta.LR
+beta_LR_sd <- sd(results_df$beta.LR, na.rm = TRUE)
+
+# Plot histograms with individual y-axes
+ggplot(results_filtered, aes(x = value)) +
+  geom_histogram(binwidth = 0.1, fill = "blue", alpha = 0.6, color = "black") +
+  facet_wrap(~variable, scales = "free") +  # Free scales for both x and y axes
+  geom_vline(xintercept = beta_LR_sd, color = "red", linetype = "dashed", size = 1) + # Red vertical line
+  theme_minimal() +
+  labs(title = "Histograms of Standard Errors (Top 5% Removed for Jackknife)", 
+       x = "Value", y = "Frequency")
+```
+
+
+### Case for p/n high (p/n=0.5)
+
+```{r ,echo=FALSE}
+set.seed(1)
+n <- 100
+k <- 4 # number of observations per coefficient
+p0 <- floor(n/k) #number of variables
+rho <- 0.6  # Correlation
+Sigma <- matrix(rho, p0, p0)  # Correlation matrix
+diag(Sigma) <- 1  # Set diagonal to 1 for variances
+mu <- rep(0, p0)
+beta <- rep(0.5,p0)
+
+# Generate correlated predictors
+X <- mvrnorm(n, mu, Sigma)  
+
+# Compute response variable
+Y <- X %*% beta + rnorm(n)
+
+# Convert X to a data frame
+data <- as.data.frame(X)
+colnames(data) <- paste0("X", 1:p0)  # Rename columns as X1, X2, ..., Xp0
+
+# Generate squared and cubic terms for a subset of variables
+for (j in 1:floor(p0/3)) {
+  data[[paste0("X", j, "_sq")]] <- data[[paste0("X", j)]]^2
+  data[[paste0("X", j, "_cube")]] <- data[[paste0("X", j)]]^3
+}
+
+# Generate interaction terms for a subset of variables
+for (j in 1:floor((p0-1)/5)) {
+  for (k in (j+1):min(j+2, p0)) {  # Ensure k does not exceed p0
+    data[[paste0("X", j, "_X", k)]] <- data[[paste0("X", j)]] * data[[paste0("X", k)]]
+  }
+}
+
+X_ext <- as.matrix(data)
+p <- dim(X_ext)[2]
+
+
+# Add Y
+data$Y <- Y
+```
+
+We fit first an OLS model with intercept which yields somewhat better results:
+```{r  ,echo=FALSE}
+m1 <- lm(Y ~ X_ext)
+coef(m1)[1:10]
+
+```
+We compute the estimate for X1 when partialling out (FWL theorem).
+```{r}
+# Residualize Y and X1 using all other variables (except X1)
+mY <- lm(Y ~ . - X1, data = data)  # Regress Y on everything except X1
+mX1 <- lm(X_ext[,1] ~ . - X1, data = as.data.frame(X_ext))  # Regress X1 on all other predictors
+
+# Get residuals
+Y.tilde <- resid(mY)
+X1.tilde <- resid(mX1)
+
+# Second-stage regression (FWL result)
+m2 <- lm(Y.tilde ~ X1.tilde - 1)  # No intercept
+
+```
+OLS:
+```{r  ,echo=FALSE}
+coef(summary(m1))[2,]
+
+```
+
+Partialllng out:
+```{r ,echo=FALSE}
+coef(summary(m2))
+```
+
+
+Let's run the simulations:
+
+```{r,echo=FALSE}
+# Detect available cores and set up parallelization
+num_cores <- detectCores() - 1  
+cl <- makeCluster(num_cores)
+registerDoParallel(cl)
+
+# Number of simulations
+N.sim <- 1000
+
+# Run simulations in parallel
+results <- foreach(i = 1:N.sim, .combine = rbind, .packages = c("MASS", "sandwich", "boot")) %dopar% {
+  # Generate correlated predictors
+  X <- mvrnorm(n, mu, Sigma)  
+  # Convert X to a data frame
+  data <- as.data.frame(X)
+  colnames(data) <- paste0("X", 1:p0)  # Rename columns as X1, X2, ..., Xp0
+  # Generate squared and cubic terms for a subset of variables
+  for (j in 1:floor(p0/3)) {
+    data[[paste0("X", j, "_sq")]] <- data[[paste0("X", j)]]^2
+    data[[paste0("X", j, "_cube")]] <- data[[paste0("X", j)]]^3
+  }
+  # Generate interaction terms for a subset of variables
+  for (j in 1:floor((p0-1)/5)) {
+    for (k in (j+1):min(j+2, p0)) {  # Ensure k does not exceed p0
+      data[[paste0("X", j, "_X", k)]] <- data[[paste0("X", j)]] * data[[paste0("X", k)]]
+    }
+  }
+  X_ext <- as.matrix(data)
+  p <- dim(X_ext)[2]
+  beta <- rep(0.5,p)
+  # Compute response variable
+  Y <- X_ext %*% beta + rnorm(n)
+  # Add Y
+  data$Y <- Y
+  
+  # Fit models
+  m1 <- lm(Y ~ . , data = data)
+  mY <- lm(Y ~ . - X1, data = data)  # Regress Y on everything except X1
+  mX1 <- lm(X_ext[,1] ~ . - X1, data = as.data.frame(X_ext))  # Regress X1 on all other predictors
+  Y.tilde <- resid(mY)
+  X1.tilde <- resid(mX1)
+  m2 <- lm(Y.tilde ~ X1.tilde - 1)  # No intercept
+
+
+  # Extract coefficients and standard errors
+  beta_LR <- coef(summary(m1))[2, 1]
+  SE_LR <- coef(summary(m1))[2, 2]
+  SE_LRHW <- sqrt(diag(vcovHC(m1, type = "HC0"))[2])
+  SE_LRJN <- sqrt(diag(vcovHC(m1, type = "HC3"))[2])
+  
+  beta_PO <- coef(summary(m2))[1]
+  SE_PO <- coef(summary(m2))[2]
+  SE_POHW <- sqrt(vcovHC(m2, type = "HC0"))
+  
+  data_list <- data.frame(Y = Y, X_ext)
+  jack_res <- boot(data = data_list, 
+                   statistic = jackknife_po_fn, 
+                   R = n,  
+                   sim = "ordinary")
+  SE_POJN <- sqrt((n - 1) / n * var(jack_res$t))
+  
+  # Return results
+  c(beta_LR, SE_LR, SE_LRHW, SE_LRJN, beta_PO, SE_PO, SE_POHW, SE_POJN)
+}
+
+# Stop parallel cluster
+stopCluster(cl)
+
+# Convert results to a data frame
+results_df <- as.data.frame(results)
+colnames(results_df) <- c("beta.LR", "SE.LR", "SE.LRHW", "SE.LRJN", "beta.PO", "SE.PO", "SE.POHW", "SE.POJN")
+
+```
+
+```{r,echo=FALSE}
+results_table <- rbind(
+  Mean = colMeans(results_df, na.rm = TRUE),  
+  SD = apply(results_df, 2, sd, na.rm = TRUE)  
+)
+results_table
+```
+When p/n is close to 0.5 we have every estimator behaving better, although SE.LR is the only seemengly unbiased one. 
+
+```{r,echo=FALSE}
+# Convert results_df to long format for ggplot
+results_long <- melt(results_df[, c("SE.LR", "SE.LRHW", "SE.LRJN", "SE.PO", "SE.POHW", "SE.POJN")])
+
+# Identify JN SE variables
+JN_vars <- c("SE.LRJN", "SE.POJN")
+
+# Compute the 95th percentile **only** for JN SE variables
+quantiles_JN <- results_long %>%
+  filter(variable %in% JN_vars) %>%
+  group_by(variable) %>%
+  summarise(upper = quantile(value, 0.95, na.rm = TRUE))
+
+# Merge quantiles only for JN variables
+results_filtered <- results_long %>%
+  left_join(quantiles_JN, by = "variable") %>%
+  mutate(value = ifelse(variable %in% JN_vars & value > upper, NA, value)) %>%
+  filter(!is.na(value))  # Remove NA values from JN variables
+
+# Compute the standard deviation of beta.LR
+beta_LR_sd <- sd(results_df$beta.LR, na.rm = TRUE)
+
+# Plot histograms with individual y-axes
+ggplot(results_filtered, aes(x = value)) +
+  geom_histogram(binwidth = 0.025, fill = "blue", alpha = 0.6, color = "black") +
+  facet_wrap(~variable, scales = "free") +  # Free scales for both x and y axes
+  geom_vline(xintercept = beta_LR_sd, color = "red", linetype = "dashed", size = 1) + # Red vertical line
+  theme_minimal() +
+  labs(title = "Histograms of Standard Errors (Top 5% Removed for Jackknife)", 
+       x = "Value", y = "Frequency")
+```
+
+
+### Case for p/n small (p/n=0.07)
+
+We generate the data. Two independent base variables, X1 and X2, and we add their squares and cubes and their interaction.
+```{r ,echo=FALSE}
+set.seed(1)
+n <- 100
+k <- 50 # number of observations per coefficient
+p0 <- floor(n/k) #number of variables
+rho <- 0.6  # Correlation
+Sigma <- matrix(rho, p0, p0)  # Correlation matrix
+diag(Sigma) <- 1  # Set diagonal to 1 for variances
+mu <- rep(0, p0)
+beta <- rep(0.5,p0)
+
+# Generate correlated predictors
+X <- mvrnorm(n, mu, Sigma)  
+
+# Compute response variable
+Y <- X %*% beta + rnorm(n)
+
+# Convert X to a data frame
+data <- as.data.frame(X)
+colnames(data) <- paste0("X", 1:p0)  # Rename columns as X1, X2, ..., Xp0
+
+# Generate squared and cubic terms for a subset of variables
+for (j in 1:floor(p0)) {
+  data[[paste0("X", j, "_sq")]] <- data[[paste0("X", j)]]^2
+  data[[paste0("X", j, "_cube")]] <- data[[paste0("X", j)]]^3
+}
+
+# Generate interaction terms for a subset of variables
+for (j in 1:floor((p0-1))) {
+  for (k in (j+1):min(j+2, p0)) {  # Ensure k does not exceed p0
+    data[[paste0("X", j, "_X", k)]] <- data[[paste0("X", j)]] * data[[paste0("X", k)]]
+  }
+}
+
+X_ext <- as.matrix(data)
+p <- dim(X_ext)[2]
+
+
+# Add Y
+data$Y <- Y
+```
+
+We fit first an OLS model with intercept which yields much better results:
+```{r  ,echo=FALSE}
+m1 <- lm(Y ~ X_ext)
+coef(m1)[1:7]
+
+```
+We compute the estimate for X1 when partialling out (FWL theorem).
+```{r}
+
+# Residualize Y and X1 using all other variables (except X1)
+mY <- lm(Y ~ . - X1, data = data)  # Regress Y on everything except X1
+mX1 <- lm(X_ext[,1] ~ . - X1, data = as.data.frame(X_ext))  # Regress X1 on all other predictors
+
+# Get residuals
+Y.tilde <- resid(mY)
+X1.tilde <- resid(mX1)
+
+# Second-stage regression (FWL result)
+m2 <- lm(Y.tilde ~ X1.tilde - 1)  # No intercept
+
+```
+OLS:
+```{r  ,echo=FALSE}
+coef(summary(m1))[2,]
+
+```
+
+Partialllng out:
+```{r ,echo=FALSE}
+coef(summary(m2))
+```
+
+
+```{r,echo=FALSE}
+# Detect available cores and set up parallelization
+num_cores <- detectCores() - 1  
+cl <- makeCluster(num_cores)
+registerDoParallel(cl)
+
+# Number of simulations
+N.sim <- 1000
+
+# Run simulations in parallel
+results <- foreach(i = 1:N.sim, .combine = rbind, .packages = c("MASS", "sandwich", "boot")) %dopar% {
+  # Generate correlated predictors
+  X <- mvrnorm(n, mu, Sigma)  
+  # Convert X to a data frame
+  data <- as.data.frame(X)
+  colnames(data) <- paste0("X", 1:p0)  # Rename columns as X1, X2, ..., Xp0
+  # Generate squared and cubic terms for a subset of variables
+  for (j in 1:floor(p0)) {
+    data[[paste0("X", j, "_sq")]] <- data[[paste0("X", j)]]^2
+    data[[paste0("X", j, "_cube")]] <- data[[paste0("X", j)]]^3
+  }
+  # Generate interaction terms for a subset of variables
+  for (j in 1:floor((p0-1))) {
+    for (k in (j+1):min(j+2, p0)) {  # Ensure k does not exceed p0
+      data[[paste0("X", j, "_X", k)]] <- data[[paste0("X", j)]] * data[[paste0("X", k)]]
+    }
+  }
+  X_ext <- as.matrix(data)
+  p <- dim(X_ext)[2]
+  beta <- rep(0.5,p)
+  # Compute response variable
+  Y <- X_ext %*% beta + rnorm(n)
+  # Add Y
+  data$Y <- Y
+  
+  # Fit models
+  m1 <- lm(Y ~ . , data = data)
+  mY <- lm(Y ~ . - X1, data = data)  # Regress Y on everything except X1
+  mX1 <- lm(X_ext[,1] ~ . - X1, data = as.data.frame(X_ext))  # Regress X1 on all other predictors
+  Y.tilde <- resid(mY)
+  X1.tilde <- resid(mX1)
+  m2 <- lm(Y.tilde ~ X1.tilde - 1)  # No intercept
+
+
+  # Extract coefficients and standard errors
+  beta_LR <- coef(summary(m1))[2, 1]
+  SE_LR <- coef(summary(m1))[2, 2]
+  SE_LRHW <- sqrt(diag(vcovHC(m1, type = "HC0"))[2])
+  SE_LRJN <- sqrt(diag(vcovHC(m1, type = "HC3"))[2])
+  
+  beta_PO <- coef(summary(m2))[1]
+  SE_PO <- coef(summary(m2))[2]
+  SE_POHW <- sqrt(vcovHC(m2, type = "HC0"))
+  
+  data_list <- data.frame(Y = Y, X_ext)
+  jack_res <- boot(data = data_list, 
+                   statistic = jackknife_po_fn, 
+                   R = n,  
+                   sim = "ordinary")
+  SE_POJN <- sqrt((n - 1) / n * var(jack_res$t))
+  
+  # Return results
+  c(beta_LR, SE_LR, SE_LRHW, SE_LRJN, beta_PO, SE_PO, SE_POHW, SE_POJN)
+}
+
+# Stop parallel cluster
+stopCluster(cl)
+
+# Convert results to a data frame
+results_df <- as.data.frame(results)
+colnames(results_df) <- c("beta.LR", "SE.LR", "SE.LRHW", "SE.LRJN", "beta.PO", "SE.PO", "SE.POHW", "SE.POJN")
+
+```
+
+```{r,echo=FALSE}
+results_table <- rbind(
+  Mean = colMeans(results_df, na.rm = TRUE),  
+  SD = apply(results_df, 2, sd, na.rm = TRUE)  
+)
+results_table
+```
+SE.LR is still by far the best estimator, with the smalles bias and variance, but all of them start to approach the true value. For p/n this small we see that the negative efffects of p/n high on Partiallin out seem to vanish. 
+
+```{r,echo=FALSE}
+# Convert results_df to long format for ggplot
+results_long <- melt(results_df[, c("SE.LR", "SE.LRHW", "SE.LRJN", "SE.PO", "SE.POHW", "SE.POJN")])
+
+# Identify JN SE variables
+JN_vars <- c("SE.LRJN", "SE.POJN")
+
+# Compute the 95th percentile **only** for JN SE variables
+quantiles_JN <- results_long %>%
+  filter(variable %in% JN_vars) %>%
+  group_by(variable) %>%
+  summarise(upper = quantile(value, 0.95, na.rm = TRUE))
+
+# Merge quantiles only for JN variables
+results_filtered <- results_long %>%
+  left_join(quantiles_JN, by = "variable") %>%
+  mutate(value = ifelse(variable %in% JN_vars & value > upper, NA, value)) %>%
+  filter(!is.na(value))  # Remove NA values from JN variables
+
+# Compute the standard deviation of beta.LR
+beta_LR_sd <- sd(results_df$beta.LR, na.rm = TRUE)
+
+# Plot histograms with individual y-axes
+ggplot(results_filtered, aes(x = value)) +
+  geom_histogram(binwidth = 0.01, fill = "blue", alpha = 0.6, color = "black") +
+  facet_wrap(~variable, scales = "free") +  # Free scales for both x and y axes
+  geom_vline(xintercept = beta_LR_sd, color = "red", linetype = "dashed", size = 1) + # Red vertical line
+  theme_minimal() +
+  labs(title = "Histograms of Standard Errors (Top 5% Removed for Jackknife)", 
+       x = "Value", y = "Frequency")
+```
+**Thoughts:** Introducing misspecification does not seem to greatly affect the results that we observed in previous simulations. 

@@ -1,0 +1,297 @@
+---
+title: "Estimator Trials"
+output:
+  pdf_document: default
+  html_document: default
+date: "2025-03-25"
+bibliography: "C:/Users/carlorod/OneDrive - UGent/Documents/My_Library.bib"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(sandwich)   # For Huber-White (robust) standard errors
+library(boot) 
+library(dplyr)
+```
+
+```{r}
+jackknife_po_fn <- function(data, indices) {
+  # Leave-one-out data
+  Y_loo <- data$Y[indices]
+  X_loo <- as.matrix(data[indices, -1, drop = FALSE])
+  
+  # First-step regressions (partialling out)
+  mY_loo <- lm(Y_loo ~ X_loo[,-1])
+  mX1_loo <- lm(X_loo[,1] ~ X_loo[,-1])
+  
+  # Get residualized variables
+  Y_tilde_loo <- mY_loo$residuals
+  X1_tilde_loo <- mX1_loo$residuals
+  
+  # Second-step regression
+  m2_loo <- lm(Y_tilde_loo ~ X1_tilde_loo - 1)
+  
+  return(coef(m2_loo)[1])  # Return beta estimate
+}
+```
+
+## Linear model with independent predictors and errors (n=100)
+
+### Case for p/n very high (p/n=0.9)
+First we generate a population of n individuals with p regressors: 
+
+```{r model generation}
+set.seed(1)
+n <- 100
+k <- 1.1 # number of observations per coefficient
+p <- floor(n/k) #number of variables
+beta <- rep(0.5, p)
+X <- replicate(p, rnorm(n)) # simplified setting: all predictors are orthogonal 
+Y <- X%*%beta + rnorm(n)
+```
+
+We fit first an OLS model with intercept which yields quite bad results:
+```{r OLS model}
+m1 <- lm(Y ~ X)
+coef(m1)[1:10]
+
+```
+We compute the estimate for X1 when partialling out (FWL theorem).
+```{r FWL for X1 coefficient }
+mY <- lm(Y ~ X[,-1])
+mX1 <- lm(X[,1] ~ X[,-1])
+Y.tilde <- mY$residuals
+X1.tilde <- mX1$residuals
+m2 <- lm(Y.tilde ~ X1.tilde -1 ) # no intercept 
+```
+OLS:
+```{r  }
+coef(summary(m1))[2,]
+```
+
+Partialllng out:
+```{r }
+coef(summary(m2))
+```
+Thanks to the FWL theorem we knew that the values of the estimates had to be the same. And due to the ratio p/n being small, the estimate is far from the real value of 0.5. We also see that the estimated S.E. is different in each model, with OLS's being higher and therefore more conservative although the real estimate would still be outside of the CI.The S.E. in the PO model is not expected to work well when p/n is very high as in this case.
+
+**NOTE:** I think that there is a lot to consider here. In general, even if p/n is small, you should not use the standard SE estimator because of the homokedasticity assumption. The problem is that even if your original model is homokedastic, nothing ensures you that the second step PO model will also be. It would always be better to use the sanwich estimator (Huber-White robust s.e.) or the jackknife estimator when partialling out. I have the intuition that in this case in which every regressor is independent to each other we do not introduce homokedasticiy to the second model and therefore both the usual s.e. and the Sandwich estimators behave very similarly. I should recheck this when I introduce correlated regressors and possibly theoretically. Apart from this, because p/n is very big, even robust s.e. will not behave correctly as mentioned in the manual (refering to the sandwich estimator: "this standard error estimator formally works when p/n ≈ 0,  but fails in settings where p/n is not small") 
+
+Now let's simulate the results for X1 a thousand times to get an idea of the performance of the different s.e. estimators:
+
+```{r}
+N.sim <- 1000
+beta.LR <- beta.PO <- SE.LR <- SE.PO <- SE.POHW <- SE.POJN <- SE.LRHW <- SE.LRJN <- SE.POJN2 <- c()
+for(i in 1:N.sim)
+{
+  beta <- rep(0.5, p)
+  X <- replicate(p, rnorm(n)) 
+  Y <- X%*%beta + rnorm(n)
+  m1 <- lm(Y ~ X)
+  mY <- lm(Y ~ X[,-1])
+  mX1 <- lm(X[,1] ~ X[,-1])
+  Y.tilde <- mY$residuals
+  X1.tilde <- mX1$residuals
+  m2 <- lm(Y.tilde ~ X1.tilde -1 ) 
+  beta.LR[i] <- coef(summary(m1))[2,1]
+  SE.LR[i] <- coef(summary(m1))[2,2]
+  SE.LRHW[i] <- sqrt(diag(vcovHC(m1, type = "HC0"))[2])# Huber-White SE
+  SE.LRJN[i] <- sqrt(diag(vcovHC(m1, type = "HC3"))[2])# jackknife 
+  beta.PO[i] <- coef(summary(m2))[1] 
+  SE.PO[i] <- coef(summary(m2))[2] 
+  SE.POHW[i] <- sqrt(vcovHC(m2, type = "HC0"))# Huber-White SE
+  SE.POJN[i] <- sqrt(vcovHC(m2, type = "HC3"))# jackknife 
+  data_list <- data.frame(Y = Y, X)
+  jack_res <- boot(data = data_list, 
+                 statistic = jackknife_po_fn, 
+                 R = n,  # Leave-one-out resampling
+                 sim = "ordinary")
+  SE.POJN2[i] <- sqrt((n - 1) / n * var(jack_res$t))
+    
+}
+```
+
+
+```{r}
+results_table <- data.frame(
+  Metric = c("Mean estimate LR", "Mean estimate PO", "SD LR", "SD PO",
+             "Mean SE LR", "Mean SE LRHW","Mean SE LRJN","Mean SE PO", "Mean SE POHW", "Mean SE POJN", "Mean SE POJN2"),
+  Value = c(mean(beta.LR), mean(beta.PO), sd(beta.LR), sd(beta.PO),
+            mean(SE.LR), mean(SE.LRHW),mean(SE.LRJN),mean(SE.PO), mean(SE.POHW), mean(SE.POJN), mean(SE.POJN2))
+)
+results_table
+```
+
+Indeed, we see that the usual OLS S.E. has a very good performance when compared to the Monte Carlo estimator. The three S.E. computed through the PO model are quite far from the actual one. The fact that they seem to be consistently smaller is very problematic if we wanted to compute confidence intervals.
+
+**NOTE:** When performing the jackknife estimator when partialling out we should first remove the correspondent observation for the Leave-one-out and then compute both steps of the method. Applying HC3 to the second regression does not really function as a jackknife for the PO model.
+
+### Case for p/n high (p/n=0.5)
+
+```{r ,echo=FALSE}
+set.seed(1)
+n <- 100
+k <- 2 # number of observations per coefficient
+p <- floor(n/k) #number of variables
+beta <- rep(0.5, p)
+X <- replicate(p, rnorm(n)) # simplified setting: all predictors are orthogonal 
+Y <- X%*%beta + rnorm(n)
+```
+
+We fit first an OLS model with intercept which yields somewhat better results:
+```{r  ,echo=FALSE}
+m1 <- lm(Y ~ X)
+coef(m1)[1:10]
+
+```
+We compute the estimate for X1 when partialling out (FWL theorem).
+```{r,echo=FALSE}
+mY <- lm(Y ~ X[,-1])
+mX1 <- lm(X[,1] ~ X[,-1])
+Y.tilde <- mY$residuals
+X1.tilde <- mX1$residuals
+m2 <- lm(Y.tilde ~ X1.tilde -1 ) # no intercept 
+
+```
+OLS:
+```{r  ,echo=FALSE}
+coef(summary(m1))[2,]
+
+```
+
+Partialllng out:
+```{r ,echo=FALSE}
+coef(summary(m2))
+```
+Now, due to the ratio p/n being bigger, the estimate is much closer to the real value of 0.5. We continue to see that the estimated S.D. is different in each model, with OLS's again being higher and therefore more conservative. In this case both C.I. encompass the real value. 
+
+Let's run the simulations:
+
+```{r, echo=FALSE}
+N.sim <- 1000
+beta.LR <- beta.PO <- SE.LR <- SE.PO <- SE.POHW <- SE.POJN <- SE.LRHW <- SE.LRJN <- SE.POJN2 <- c()
+for(i in 1:N.sim)
+{
+  beta <- rep(0.5, p)
+  X <- replicate(p, rnorm(n)) 
+  Y <- X%*%beta + rnorm(n)
+  m1 <- lm(Y ~ X)
+  mY <- lm(Y ~ X[,-1])
+  mX1 <- lm(X[,1] ~ X[,-1])
+  Y.tilde <- mY$residuals
+  X1.tilde <- mX1$residuals
+  m2 <- lm(Y.tilde ~ X1.tilde -1 ) 
+  beta.LR[i] <- coef(summary(m1))[2,1]
+  SE.LR[i] <- coef(summary(m1))[2,2]
+  SE.LRHW[i] <- sqrt(diag(vcovHC(m1, type = "HC0"))[2])# Huber-White SE
+  SE.LRJN[i] <- sqrt(diag(vcovHC(m1, type = "HC3"))[2])# jackknife 
+  beta.PO[i] <- coef(summary(m2))[1] 
+  SE.PO[i] <- coef(summary(m2))[2] 
+  SE.POHW[i] <- sqrt(vcovHC(m2, type = "HC0"))# Huber-White SE
+  SE.POJN[i] <- sqrt(vcovHC(m2, type = "HC3"))# jackknife 
+  data_list <- data.frame(Y = Y, X)
+  jack_res <- boot(data = data_list, 
+                 statistic = jackknife_po_fn, 
+                 R = n,  # Leave-one-out resampling
+                 sim = "ordinary")
+  SE.POJN2[i] <- sqrt((n - 1) / n * var(jack_res$t))
+    
+}
+```
+
+```{r, echo=FALSE}
+results_table <- data.frame(
+  Metric = c("Mean estimate LR", "Mean estimate PO", "SD LR", "SD PO",
+             "Mean SE LR", "Mean SE LRHW","Mean SE LRJN","Mean SE PO", "Mean SE POHW", "Mean SE POJN", "Mean SE POJN2"),
+  Value = c(mean(beta.LR), mean(beta.PO), sd(beta.LR), sd(beta.PO),
+            mean(SE.LR), mean(SE.LRHW),mean(SE.LRJN),mean(SE.PO), mean(SE.POHW), mean(SE.POJN), mean(SE.POJN2))
+)
+results_table
+
+```
+
+The LR s.e. continues to greatly outperform the PO s.e. although this time they are significantly closer. The three PO s.e. continue to behave similarly, which to me points even more to homokedasticity due to how the regressors were created.
+
+### Case for p/n small (p/n=0.05)
+
+```{r ,echo=FALSE}
+set.seed(1)
+n <- 100
+k <- 20 # number of observations per coefficient
+p <- floor(n/k) #number of variables
+beta <- rep(0.5, p)
+X <- replicate(p, rnorm(n)) # simplified setting: all predictors are orthogonal 
+Y <- X%*%beta + rnorm(n)
+```
+
+We fit first an OLS model with intercept which yields much better results:
+```{r  ,echo=FALSE}
+m1 <- lm(Y ~ X)
+coef(m1)[1:6]
+
+```
+We compute the estimate for X1 when partialling out (FWL theorem).
+```{r,echo=FALSE}
+mY <- lm(Y ~ X[,-1])
+mX1 <- lm(X[,1] ~ X[,-1])
+Y.tilde <- mY$residuals
+X1.tilde <- mX1$residuals
+m2 <- lm(Y.tilde ~ X1.tilde -1 ) # no intercept 
+
+```
+OLS:
+```{r  ,echo=FALSE}
+coef(summary(m1))[2,]
+
+```
+
+Partialllng out:
+```{r ,echo=FALSE}
+coef(summary(m2))
+```
+This time in particular X1's estimate is the worse out of the 5. It is worse than for the previous case where p/n=0.5, although in general the model worked better now. The SD of normal OLS and Partialling out now are very similar and the real value is inside the C.I.
+
+```{r, echo=FALSE}
+N.sim <- 1000
+beta.LR <- beta.PO <- SE.LR <- SE.PO <- SE.POHW <- SE.POJN <- SE.LRHW <- SE.LRJN <- SE.POJN2 <- c()
+for(i in 1:N.sim)
+{
+  beta <- rep(0.5, p)
+  X <- replicate(p, rnorm(n)) 
+  Y <- X%*%beta + rnorm(n)
+  m1 <- lm(Y ~ X)
+  mY <- lm(Y ~ X[,-1])
+  mX1 <- lm(X[,1] ~ X[,-1])
+  Y.tilde <- mY$residuals
+  X1.tilde <- mX1$residuals
+  m2 <- lm(Y.tilde ~ X1.tilde -1 ) 
+  beta.LR[i] <- coef(summary(m1))[2,1]
+  SE.LR[i] <- coef(summary(m1))[2,2]
+  SE.LRHW[i] <- sqrt(diag(vcovHC(m1, type = "HC0"))[2])# Huber-White SE
+  SE.LRJN[i] <- sqrt(diag(vcovHC(m1, type = "HC3"))[2])# jackknife 
+  beta.PO[i] <- coef(summary(m2))[1] 
+  SE.PO[i] <- coef(summary(m2))[2] 
+  SE.POHW[i] <- sqrt(vcovHC(m2, type = "HC0"))# Huber-White SE
+  SE.POJN[i] <- sqrt(vcovHC(m2, type = "HC3"))# jackknife 
+  data_list <- data.frame(Y = Y, X)
+  jack_res <- boot(data = data_list, 
+                 statistic = jackknife_po_fn, 
+                 R = n,  # Leave-one-out resampling
+                 sim = "ordinary")
+  SE.POJN2[i] <- sqrt((n - 1) / n * var(jack_res$t))
+    
+}
+```
+
+```{r, echo=FALSE}
+results_table <- data.frame(
+  Metric = c("Mean estimate LR", "Mean estimate PO", "SD LR", "SD PO",
+             "Mean SE LR", "Mean SE LRHW","Mean SE LRJN","Mean SE PO", "Mean SE POHW", "Mean SE POJN", "Mean SE POJN2"),
+  Value = c(mean(beta.LR), mean(beta.PO), sd(beta.LR), sd(beta.PO),
+            mean(SE.LR), mean(SE.LRHW),mean(SE.LRJN),mean(SE.PO), mean(SE.POHW), mean(SE.POJN), mean(SE.POJN2))
+)
+results_table
+```
+
+Now that p/n can be considered small (although usually we would want p/n<0.1), the s.e. derived from the PO model are very similar to the usual s.e. and also to the monte carlo s.d. This little exercise clearly shows the problem of using inference when using PO if p/n is big. 
+

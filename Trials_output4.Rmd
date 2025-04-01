@@ -1,0 +1,479 @@
+---
+title: "Estimator Trials"
+output:
+  html_document: default
+  pdf_document: default
+date: "2025-03-25"
+bibliography: "C:/Users/carlorod/OneDrive - UGent/Documents/My_Library.bib"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(sandwich)   # For Huber-White (robust) standard errors
+library(boot) 
+library(dplyr)
+library(MASS)
+library(doParallel)
+library(ggplot2)
+library(reshape2)
+library(lmtest)
+
+```
+
+```{r,echo=FALSE}
+jackknife_po_fn <- function(data, indices) {
+  # Leave-one-out data
+  Y_loo <- data$Y[indices]
+  X_loo <- as.matrix(data[indices, -1, drop = FALSE])
+  
+  # First-step regressions (partialling out)
+  mY_loo <- lm(Y_loo ~ X_loo[,-1])
+  mX1_loo <- lm(X_loo[,1] ~ X_loo[,-1])
+  
+  # Get residualized variables
+  Y_tilde_loo <- mY_loo$residuals
+  X1_tilde_loo <- mX1_loo$residuals
+  
+  # Second-step regression
+  m2_loo <- lm(Y_tilde_loo ~ X1_tilde_loo - 1)
+  
+  return(coef(m2_loo)[1])  # Return beta estimate
+}
+```
+
+## Linear model with correlated predictors and heterokedasticity (n=100, rho=0.6)
+
+### Case for p/n very high (p/n=0.9)
+First we generate a population of n individuals with p regressors which are correlated with correlation 0.6. We also introduce heterokedasticity, being the sd of the error i equal to exp(Xi*gamma) where gamma is a vector drawn from a uniform distribution. The highest the number of parameters, the strongest heterokedasticity we introduce with this specification, so for p/n big I draw gamma from a uniform [-0.1,0.1] and then I increase the volatility of gamma as I reduce p/n.
+
+```{r model generation}
+set.seed(3)
+n <- 100
+k <- 1.1 # number of observations per coefficient
+p <- floor(n/k) #number of variables
+rho <- 0.6
+beta <- rep(0.5, p)
+Sigma <- matrix(rho, p, p)  # Correlation matrix
+diag(Sigma) <- 1  # Set diagonal to 1 for variances
+mu <- rep(0,p)
+X <- mvrnorm(n, mu, Sigma) # simplified setting: all predictors are orthogonal
+
+# Introduce heteroskedasticity: variance depends on X
+gamma <- runif(p, -0.25, 0.25)  # Random coefficients for variance scaling
+error_sd <- exp(X %*% gamma)  # Heteroskedastic error standard deviation
+errors <- rnorm(n, mean = 0, sd = error_sd)  # Heteroskedastic errors
+Y <- X%*%beta + errors
+```
+I had to change the seed to 3 because 1 gave a small vector when p is 5 (last case). Gamma is now:
+```{r}
+gamma[0:10]
+```
+
+
+We fit first an OLS model with intercept which yields quite bad results:
+```{r OLS model}
+m1 <- lm(Y ~ X) 
+coef(m1)[1:10]
+```
+We compute the estimate for X1 when partialling out (FWL theorem).
+```{r FWL for X1 coefficient }
+mY <- lm(Y ~ X[,-1])
+mX1 <- lm(X[,1] ~ X[,-1])
+Y.tilde <- mY$residuals
+X1.tilde <- mX1$residuals
+m2 <- lm(Y.tilde ~ X1.tilde -1 ) # no intercept 
+```
+
+OLS:
+```{r  }
+coef(summary(m1))[2,]
+```
+
+Partialllng out:
+```{r }
+coef(summary(m2))
+```
+```{r}
+# Plot to check heterokedasticity in the second step regression
+res2 <- resid(m2)
+plot(X1.tilde,res2)
+lm(res2**2  ~ X1.tilde) %>% summary
+```
+
+The second regresison model seems to show heterokedasticity which gets bigger as the heterokedasticity of the orignal model increases.
+
+```{r,echo=FALSE}
+num_cores <- detectCores() - 1  # Use available cores minus one
+cl <- makeCluster(num_cores)
+registerDoParallel(cl)
+
+N.sim <- 1000
+beta.LR <- beta.PO <- SE.LR <- SE.PO <- SE.POHW  <- SE.LRHW <- SE.LRJN <- SE.POJN <- c()
+results <- foreach(i = 1:N.sim, .combine = rbind, .packages = c("sandwich", "boot")) %dopar% {
+  
+  X <- replicate(p, rnorm(n))
+  
+  # Introduce heteroskedasticity: variance depends on X
+  error_sd <- exp(X %*% gamma)  # Heteroskedastic error standard deviation
+  errors <- rnorm(n, mean = 0, sd = error_sd)  # Heteroskedastic errors
+  Y <- X%*%beta + errors
+
+  m1 <- lm(Y ~ X)
+  mY <- lm(Y ~ X[,-1])
+  mX1 <- lm(X[,1] ~ X[,-1])
+  Y.tilde <- mY$residuals
+  X1.tilde <- mX1$residuals
+  m2 <- lm(Y.tilde ~ X1.tilde -1)
+  
+  beta_LR <- coef(summary(m1))[2, 1]
+  SE_LR <- coef(summary(m1))[2, 2]
+  SE_LRHW <- sqrt(diag(vcovHC(m1, type = "HC0"))[2])
+  SE_LRJN <- sqrt(diag(vcovHC(m1, type = "HC3"))[2])
+  
+  beta_PO <- coef(summary(m2))[1]
+  SE_PO <- coef(summary(m2))[2]
+  SE_POHW <- sqrt(vcovHC(m2, type = "HC0"))
+  
+  data_list <- data.frame(Y = Y, X)
+  jack_res <- boot(data = data_list, 
+                   statistic = jackknife_po_fn, 
+                   R = n,  
+                   sim = "ordinary")
+  SE_POJN <- sqrt((n - 1) / n * var(jack_res$t))
+  
+  c(beta_LR, SE_LR, SE_LRHW, SE_LRJN, beta_PO, SE_PO, SE_POHW, SE_POJN)
+}
+
+stopCluster(cl)
+
+# Convert results to a data frame
+results_df <- as.data.frame(results)
+colnames(results_df) <- c("beta.LR", "SE.LR", "SE.LRHW", "SE.LRJN", "beta.PO", "SE.PO", "SE.POHW",  "SE.POJN")
+```
+
+
+```{r,echo=FALSE}
+results_table <- rbind(
+  Mean = colMeans(results_df, na.rm = TRUE),  
+  SD = apply(results_df, 2, sd, na.rm = TRUE)  
+)
+results_table
+```
+**NOTE** I made the mistake of computing a new gamma for every simulation, however when we fit a model and we try to come up with a CI the reasoning is: if I drew data many times from this Data generating model and computed my beta estimate and my CI every time, the real value would fall 95% of times inside the CI. Therefore, it is important that when I compare the s.e. estimates with the s.d. of the beta I do it leaving the model untouched for every simulation.
+
+```{r}
+
+# Convert results_df to long format for ggplot
+results_long <- reshape2::melt(results_df[, c("SE.LR", "SE.LRHW", "SE.LRJN", "SE.PO", "SE.POHW", "SE.POJN")])
+
+# Compute the 95th percentile for each variable
+quantiles <- results_long %>%
+  group_by(variable) %>%
+  summarise(upper = quantile(value, 0.95, na.rm = TRUE))
+
+# Merge the quantiles with the original data
+results_filtered <- inner_join(results_long, quantiles, by = "variable")
+
+# Remove only the highest 5% of values
+results_filtered <- results_filtered %>%
+  filter(value <= upper)
+
+# Compute the standard deviation of beta.LR
+beta_LR_sd <- sd(results_df$beta.LR, na.rm = TRUE)
+
+# Plot histograms with individual y-axes
+ggplot(results_filtered, aes(x = value)) +
+  geom_histogram(binwidth = 0.25, fill = "blue", alpha = 0.6, color = "black") +
+  facet_wrap(~variable, scales = "free") +  # Free scales for both x and y axes
+  geom_vline(xintercept = beta_LR_sd, color = "red", linetype = "dashed", size = 1) + # Red vertical line
+  theme_minimal() +
+  labs(title = "Histograms of Standard Errors (Top 5% Removed)", x = "Value", y = "Frequency")
+```
+
+### Case for p/n high (p/n=0.5)
+
+```{r ,echo=FALSE}
+set.seed(3)
+n <- 100
+k <- 2 # number of observations per coefficient
+p <- floor(n/k) #number of variables
+rho <- 0.6
+beta <- rep(0.5, p)
+Sigma <- matrix(rho, p, p)  # Correlation matrix
+diag(Sigma) <- 1  # Set diagonal to 1 for variances
+mu <- rep(0,p)
+X <- mvrnorm(n, mu, Sigma) # simplified setting: all predictors are orthogonal
+
+# Introduce heteroskedasticity: variance depends on X
+gamma <- runif(p, -0.4, 0.4)  # Random coefficients for variance scaling
+error_sd <- exp(X %*% gamma)  # Heteroskedastic error standard deviation
+errors <- rnorm(n, mean = 0, sd = error_sd)  # Heteroskedastic errors
+Y <- X%*%beta + errors
+```
+
+We fit first an OLS model with intercept which yields somewhat better results:
+```{r  ,echo=FALSE}
+m1 <- lm(Y ~ X)
+coef(m1)[1:10]
+```
+
+We compute the estimate for X1 when partialling out (FWL theorem).
+```{r,echo=FALSE}
+mY <- lm(Y ~ X[,-1])
+mX1 <- lm(X[,1] ~ X[,-1])
+Y.tilde <- mY$residuals
+X1.tilde <- mX1$residuals
+m2 <- lm(Y.tilde ~ X1.tilde -1 ) # no intercept 
+```
+OLS:
+```{r  ,echo=FALSE}
+coef(summary(m1))[2,]
+```
+
+Partialllng out:
+```{r ,echo=FALSE}
+coef(summary(m2))
+```
+
+```{r, echo=FALSE}
+plot(X1.tilde,resid(m2))
+```
+
+Let's run the simulations:
+
+```{r,echo=FALSE}
+num_cores <- detectCores() - 1  # Use available cores minus one
+cl <- makeCluster(num_cores)
+registerDoParallel(cl)
+
+N.sim <- 1000
+beta.LR <- beta.PO <- SE.LR <- SE.PO <- SE.POHW  <- SE.LRHW <- SE.LRJN <- SE.POJN <- c()
+results <- foreach(i = 1:N.sim, .combine = rbind, .packages = c("sandwich", "boot")) %dopar% {
+  
+  X <- replicate(p, rnorm(n))
+  
+  # Introduce heteroskedasticity: variance depends on X
+  error_sd <- exp(X %*% gamma)  # Heteroskedastic error standard deviation
+  errors <- rnorm(n, mean = 0, sd = error_sd)  # Heteroskedastic errors
+  Y <- X%*%beta + errors
+
+  m1 <- lm(Y ~ X)
+  mY <- lm(Y ~ X[,-1])
+  mX1 <- lm(X[,1] ~ X[,-1])
+  Y.tilde <- mY$residuals
+  X1.tilde <- mX1$residuals
+  m2 <- lm(Y.tilde ~ X1.tilde -1)
+  
+  beta_LR <- coef(summary(m1))[2, 1]
+  SE_LR <- coef(summary(m1))[2, 2]
+  SE_LRHW <- sqrt(diag(vcovHC(m1, type = "HC0"))[2])
+  SE_LRJN <- sqrt(diag(vcovHC(m1, type = "HC3"))[2])
+  
+  beta_PO <- coef(summary(m2))[1]
+  SE_PO <- coef(summary(m2))[2]
+  SE_POHW <- sqrt(vcovHC(m2, type = "HC0"))
+  
+  data_list <- data.frame(Y = Y, X)
+  jack_res <- boot(data = data_list, 
+                   statistic = jackknife_po_fn, 
+                   R = n,  
+                   sim = "ordinary")
+  SE_POJN <- sqrt((n - 1) / n * var(jack_res$t))
+  
+  c(beta_LR, SE_LR, SE_LRHW, SE_LRJN, beta_PO, SE_PO, SE_POHW, SE_POJN)
+}
+
+stopCluster(cl)
+
+# Convert results to a data frame
+results_df <- as.data.frame(results)
+colnames(results_df) <- c("beta.LR", "SE.LR", "SE.LRHW", "SE.LRJN", "beta.PO", "SE.PO", "SE.POHW",  "SE.POJN")
+
+```
+
+```{r,echo=FALSE}
+results_table <- rbind(
+  Mean = colMeans(results_df, na.rm = TRUE),  
+  SD = apply(results_df, 2, sd, na.rm = TRUE)  
+)
+results_table
+```
+
+```{r,echo=FALSE}
+
+# Convert results_df to long format for ggplot
+results_long <- reshape2::melt(results_df[, c("SE.LR", "SE.LRHW", "SE.LRJN", "SE.PO", "SE.POHW", "SE.POJN")])
+
+# Compute the 95th percentile for each variable
+quantiles <- results_long %>%
+  group_by(variable) %>%
+  summarise(upper = quantile(value, 0.95, na.rm = TRUE))
+
+# Merge the quantiles with the original data
+results_filtered <- inner_join(results_long, quantiles, by = "variable")
+
+# Remove only the highest 5% of values
+results_filtered <- results_filtered %>%
+  filter(value <= upper)
+
+# Compute the standard deviation of beta.LR
+beta_LR_sd <- sd(results_df$beta.LR, na.rm = TRUE)
+
+# Plot histograms with individual y-axes
+ggplot(results_filtered, aes(x = value)) +
+  geom_histogram(binwidth = 0.1, fill = "blue", alpha = 0.6, color = "black") +
+  facet_wrap(~variable, scales = "free") +  # Free scales for both x and y axes
+  geom_vline(xintercept = beta_LR_sd, color = "red", linetype = "dashed", size = 1) + # Red vertical line
+  theme_minimal() +
+  labs(title = "Histograms of Standard Errors (Top 5% Removed)", x = "Value", y = "Frequency")
+```
+
+
+
+
+### Case for p/n small (p/n=0.05)
+
+```{r ,echo=FALSE}
+set.seed(3)
+n <- 100
+k <- 20 # number of observations per coefficient
+p <- floor(n/k) #number of variables
+rho <- 0.6
+beta <- rep(0.5, p)
+Sigma <- matrix(rho, p, p)  # Correlation matrix
+diag(Sigma) <- 1  # Set diagonal to 1 for variances
+mu <- rep(0,p)
+X <- mvrnorm(n, mu, Sigma) # simplified setting: all predictors are orthogonal
+
+# Introduce heteroskedasticity: variance depends on X
+gamma <- runif(p, -0.75, 0.75)  # Random coefficients for variance scaling
+error_sd <- exp(X %*% gamma)  # Heteroskedastic error standard deviation
+errors <- rnorm(n, mean = 0, sd = error_sd)  # Heteroskedastic errors
+Y <- X%*%beta + errors
+```
+The gamma vector equals:
+
+```{r}
+gamma
+```
+
+We fit first an OLS model with intercept which yields much better results:
+```{r  ,echo=FALSE}
+m1 <- lm(Y ~ X)
+coef(m1)[1:6]
+
+```
+We compute the estimate for X1 when partialling out (FWL theorem).
+```{r,echo=FALSE}
+mY <- lm(Y ~ X[,-1])
+mX1 <- lm(X[,1] ~ X[,-1])
+Y.tilde <- mY$residuals
+X1.tilde <- mX1$residuals
+m2 <- lm(Y.tilde ~ X1.tilde -1 ) # no intercept 
+
+```
+OLS:
+```{r  ,echo=FALSE}
+coef(summary(m1))[2,]
+
+```
+
+Partialllng out:
+```{r ,echo=FALSE}
+coef(summary(m2))
+```
+
+```{r,echo=FALSE}
+plot(X1.tilde,resid(m2))
+```
+
+
+```{r,echo=FALSE}
+num_cores <- detectCores() - 1  # Use available cores minus one
+cl <- makeCluster(num_cores)
+registerDoParallel(cl)
+
+N.sim <- 1000
+beta.LR <- beta.PO <- SE.LR <- SE.PO <- SE.POHW  <- SE.LRHW <- SE.LRJN <- SE.POJN <- c()
+results <- foreach(i = 1:N.sim, .combine = rbind, .packages = c("sandwich", "boot")) %dopar% {
+  
+  X <- replicate(p, rnorm(n))
+  
+  # Introduce heteroskedasticity: variance depends on X
+  error_sd <- exp(X %*% gamma)  # Heteroskedastic error standard deviation
+  errors <- rnorm(n, mean = 0, sd = error_sd)  # Heteroskedastic errors
+  Y <- X%*%beta + errors
+
+  m1 <- lm(Y ~ X)
+  mY <- lm(Y ~ X[,-1])
+  mX1 <- lm(X[,1] ~ X[,-1])
+  Y.tilde <- mY$residuals
+  X1.tilde <- mX1$residuals
+  m2 <- lm(Y.tilde ~ X1.tilde -1)
+  
+  beta_LR <- coef(summary(m1))[2, 1]
+  SE_LR <- coef(summary(m1))[2, 2]
+  SE_LRHW <- sqrt(diag(vcovHC(m1, type = "HC0"))[2])
+  SE_LRJN <- sqrt(diag(vcovHC(m1, type = "HC3"))[2])
+  
+  beta_PO <- coef(summary(m2))[1]
+  SE_PO <- coef(summary(m2))[2]
+  SE_POHW <- sqrt(vcovHC(m2, type = "HC0"))
+  
+  data_list <- data.frame(Y = Y, X)
+  jack_res <- boot(data = data_list, 
+                   statistic = jackknife_po_fn, 
+                   R = n,  
+                   sim = "ordinary")
+  SE_POJN <- sqrt((n - 1) / n * var(jack_res$t))
+  
+  c(beta_LR, SE_LR, SE_LRHW, SE_LRJN, beta_PO, SE_PO, SE_POHW, SE_POJN)
+}
+
+stopCluster(cl)
+
+# Convert results to a data frame
+results_df <- as.data.frame(results)
+colnames(results_df) <- c("beta.LR", "SE.LR", "SE.LRHW", "SE.LRJN", "beta.PO", "SE.PO", "SE.POHW",  "SE.POJN")
+
+```
+
+```{r,echo=FALSE}
+results_table <- rbind(
+  Mean = colMeans(results_df, na.rm = TRUE),  
+  SD = apply(results_df, 2, sd, na.rm = TRUE)  
+)
+results_table
+```
+For a smaller p/n and high heterokedasticity they all behave badly, with the usual OLS being the worst and JN begint the best.
+```{r,echo=FALSE}
+
+# Convert results_df to long format for ggplot
+results_long <- reshape2::melt(results_df[, c("SE.LR", "SE.LRHW", "SE.LRJN", "SE.PO", "SE.POHW", "SE.POJN")])
+
+# Compute the 95th percentile for each variable
+quantiles <- results_long %>%
+  group_by(variable) %>%
+  summarise(upper = quantile(value, 0.95, na.rm = TRUE))
+
+# Merge the quantiles with the original data
+results_filtered <- inner_join(results_long, quantiles, by = "variable")
+
+# Remove only the highest 5% of values
+results_filtered <- results_filtered %>%
+  filter(value <= upper)
+
+# Compute the standard deviation of beta.LR
+beta_LR_sd <- sd(results_df$beta.LR, na.rm = TRUE)
+
+# Plot histograms with individual y-axes
+ggplot(results_filtered, aes(x = value)) +
+  geom_histogram(binwidth = 0.05, fill = "blue", alpha = 0.6, color = "black") +
+  facet_wrap(~variable, scales = "free") +  # Free scales for both x and y axes
+  geom_vline(xintercept = beta_LR_sd, color = "red", linetype = "dashed", size = 1) + # Red vertical line
+  theme_minimal() +
+  labs(title = "Histograms of Standard Errors (Top 5% Removed)", x = "Value", y = "Frequency")
+```
+
+**Thoughts:**  The results that I obtained were quite dependent on the gamma vector that I obtain when running runif, and therefore on the seed and on the coefficient that I choose to study. I had to change the seed to 3 because the coefficeients were small for seed 1 so I could make sure to introduce more heterokedasticity. It is hard to adjut the p/n to heterokedasticity level, since augmentint p increases both and therefore I had to reduce the gamma vector accordingly and a bit blidnly. When p/n is high OLS is still by far the best estimator although the higher the heterokedasticity the worse the estimator performs. As p/n becomes smaller HW and particularly Jackknife start outperforming it. Interestingly, while for high values of p/n JN is famously very conservative and volatile, for p/n small every estimator underestimates the actual s.d. of beta. Note that in the case of heterokedasticity we are much more dependnt on assymptotic results for the good behaviour of our estimators so these results are not unexpected. 
+

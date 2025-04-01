@@ -1,0 +1,511 @@
+% Options for packages loaded elsewhere
+\PassOptionsToPackage{unicode}{hyperref}
+\PassOptionsToPackage{hyphens}{url}
+%
+\documentclass[
+]{article}
+\usepackage{amsmath,amssymb}
+\usepackage{iftex}
+\ifPDFTeX
+  \usepackage[T1]{fontenc}
+  \usepackage[utf8]{inputenc}
+  \usepackage{textcomp} % provide euro and other symbols
+\else % if luatex or xetex
+  \usepackage{unicode-math} % this also loads fontspec
+  \defaultfontfeatures{Scale=MatchLowercase}
+  \defaultfontfeatures[\rmfamily]{Ligatures=TeX,Scale=1}
+\fi
+\usepackage{lmodern}
+\ifPDFTeX\else
+  % xetex/luatex font selection
+\fi
+% Use upquote if available, for straight quotes in verbatim environments
+\IfFileExists{upquote.sty}{\usepackage{upquote}}{}
+\IfFileExists{microtype.sty}{% use microtype if available
+  \usepackage[]{microtype}
+  \UseMicrotypeSet[protrusion]{basicmath} % disable protrusion for tt fonts
+}{}
+\makeatletter
+\@ifundefined{KOMAClassName}{% if non-KOMA class
+  \IfFileExists{parskip.sty}{%
+    \usepackage{parskip}
+  }{% else
+    \setlength{\parindent}{0pt}
+    \setlength{\parskip}{6pt plus 2pt minus 1pt}}
+}{% if KOMA class
+  \KOMAoptions{parskip=half}}
+\makeatother
+\usepackage{xcolor}
+\usepackage[margin=1in]{geometry}
+\usepackage{color}
+\usepackage{fancyvrb}
+\newcommand{\VerbBar}{|}
+\newcommand{\VERB}{\Verb[commandchars=\\\{\}]}
+\DefineVerbatimEnvironment{Highlighting}{Verbatim}{commandchars=\\\{\}}
+% Add ',fontsize=\small' for more characters per line
+\usepackage{framed}
+\definecolor{shadecolor}{RGB}{248,248,248}
+\newenvironment{Shaded}{\begin{snugshade}}{\end{snugshade}}
+\newcommand{\AlertTok}[1]{\textcolor[rgb]{0.94,0.16,0.16}{#1}}
+\newcommand{\AnnotationTok}[1]{\textcolor[rgb]{0.56,0.35,0.01}{\textbf{\textit{#1}}}}
+\newcommand{\AttributeTok}[1]{\textcolor[rgb]{0.13,0.29,0.53}{#1}}
+\newcommand{\BaseNTok}[1]{\textcolor[rgb]{0.00,0.00,0.81}{#1}}
+\newcommand{\BuiltInTok}[1]{#1}
+\newcommand{\CharTok}[1]{\textcolor[rgb]{0.31,0.60,0.02}{#1}}
+\newcommand{\CommentTok}[1]{\textcolor[rgb]{0.56,0.35,0.01}{\textit{#1}}}
+\newcommand{\CommentVarTok}[1]{\textcolor[rgb]{0.56,0.35,0.01}{\textbf{\textit{#1}}}}
+\newcommand{\ConstantTok}[1]{\textcolor[rgb]{0.56,0.35,0.01}{#1}}
+\newcommand{\ControlFlowTok}[1]{\textcolor[rgb]{0.13,0.29,0.53}{\textbf{#1}}}
+\newcommand{\DataTypeTok}[1]{\textcolor[rgb]{0.13,0.29,0.53}{#1}}
+\newcommand{\DecValTok}[1]{\textcolor[rgb]{0.00,0.00,0.81}{#1}}
+\newcommand{\DocumentationTok}[1]{\textcolor[rgb]{0.56,0.35,0.01}{\textbf{\textit{#1}}}}
+\newcommand{\ErrorTok}[1]{\textcolor[rgb]{0.64,0.00,0.00}{\textbf{#1}}}
+\newcommand{\ExtensionTok}[1]{#1}
+\newcommand{\FloatTok}[1]{\textcolor[rgb]{0.00,0.00,0.81}{#1}}
+\newcommand{\FunctionTok}[1]{\textcolor[rgb]{0.13,0.29,0.53}{\textbf{#1}}}
+\newcommand{\ImportTok}[1]{#1}
+\newcommand{\InformationTok}[1]{\textcolor[rgb]{0.56,0.35,0.01}{\textbf{\textit{#1}}}}
+\newcommand{\KeywordTok}[1]{\textcolor[rgb]{0.13,0.29,0.53}{\textbf{#1}}}
+\newcommand{\NormalTok}[1]{#1}
+\newcommand{\OperatorTok}[1]{\textcolor[rgb]{0.81,0.36,0.00}{\textbf{#1}}}
+\newcommand{\OtherTok}[1]{\textcolor[rgb]{0.56,0.35,0.01}{#1}}
+\newcommand{\PreprocessorTok}[1]{\textcolor[rgb]{0.56,0.35,0.01}{\textit{#1}}}
+\newcommand{\RegionMarkerTok}[1]{#1}
+\newcommand{\SpecialCharTok}[1]{\textcolor[rgb]{0.81,0.36,0.00}{\textbf{#1}}}
+\newcommand{\SpecialStringTok}[1]{\textcolor[rgb]{0.31,0.60,0.02}{#1}}
+\newcommand{\StringTok}[1]{\textcolor[rgb]{0.31,0.60,0.02}{#1}}
+\newcommand{\VariableTok}[1]{\textcolor[rgb]{0.00,0.00,0.00}{#1}}
+\newcommand{\VerbatimStringTok}[1]{\textcolor[rgb]{0.31,0.60,0.02}{#1}}
+\newcommand{\WarningTok}[1]{\textcolor[rgb]{0.56,0.35,0.01}{\textbf{\textit{#1}}}}
+\usepackage{graphicx}
+\makeatletter
+\def\maxwidth{\ifdim\Gin@nat@width>\linewidth\linewidth\else\Gin@nat@width\fi}
+\def\maxheight{\ifdim\Gin@nat@height>\textheight\textheight\else\Gin@nat@height\fi}
+\makeatother
+% Scale images if necessary, so that they will not overflow the page
+% margins by default, and it is still possible to overwrite the defaults
+% using explicit options in \includegraphics[width, height, ...]{}
+\setkeys{Gin}{width=\maxwidth,height=\maxheight,keepaspectratio}
+% Set default figure placement to htbp
+\makeatletter
+\def\fps@figure{htbp}
+\makeatother
+\setlength{\emergencystretch}{3em} % prevent overfull lines
+\providecommand{\tightlist}{%
+  \setlength{\itemsep}{0pt}\setlength{\parskip}{0pt}}
+\setcounter{secnumdepth}{-\maxdimen} % remove section numbering
+\ifLuaTeX
+  \usepackage{selnolig}  % disable illegal ligatures
+\fi
+\usepackage{bookmark}
+\IfFileExists{xurl.sty}{\usepackage{xurl}}{} % add URL line breaks if available
+\urlstyle{same}
+\hypersetup{
+  pdftitle={Estimator Trials},
+  hidelinks,
+  pdfcreator={LaTeX via pandoc}}
+
+\title{Estimator Trials}
+\author{}
+\date{\vspace{-2.5em}2025-03-25}
+
+\begin{document}
+\maketitle
+
+\begin{Shaded}
+\begin{Highlighting}[]
+\NormalTok{jackknife\_po\_fn }\OtherTok{\textless{}{-}} \ControlFlowTok{function}\NormalTok{(data, indices) \{}
+  \CommentTok{\# Leave{-}one{-}out data}
+\NormalTok{  Y\_loo }\OtherTok{\textless{}{-}}\NormalTok{ data}\SpecialCharTok{$}\NormalTok{Y[indices]}
+\NormalTok{  X\_loo }\OtherTok{\textless{}{-}} \FunctionTok{as.matrix}\NormalTok{(data[indices, }\SpecialCharTok{{-}}\DecValTok{1}\NormalTok{, }\AttributeTok{drop =} \ConstantTok{FALSE}\NormalTok{])}
+  
+  \CommentTok{\# First{-}step regressions (partialling out)}
+\NormalTok{  mY\_loo }\OtherTok{\textless{}{-}} \FunctionTok{lm}\NormalTok{(Y\_loo }\SpecialCharTok{\textasciitilde{}}\NormalTok{ X\_loo[,}\SpecialCharTok{{-}}\DecValTok{1}\NormalTok{])}
+\NormalTok{  mX1\_loo }\OtherTok{\textless{}{-}} \FunctionTok{lm}\NormalTok{(X\_loo[,}\DecValTok{1}\NormalTok{] }\SpecialCharTok{\textasciitilde{}}\NormalTok{ X\_loo[,}\SpecialCharTok{{-}}\DecValTok{1}\NormalTok{])}
+  
+  \CommentTok{\# Get residualized variables}
+\NormalTok{  Y\_tilde\_loo }\OtherTok{\textless{}{-}}\NormalTok{ mY\_loo}\SpecialCharTok{$}\NormalTok{residuals}
+\NormalTok{  X1\_tilde\_loo }\OtherTok{\textless{}{-}}\NormalTok{ mX1\_loo}\SpecialCharTok{$}\NormalTok{residuals}
+  
+  \CommentTok{\# Second{-}step regression}
+\NormalTok{  m2\_loo }\OtherTok{\textless{}{-}} \FunctionTok{lm}\NormalTok{(Y\_tilde\_loo }\SpecialCharTok{\textasciitilde{}}\NormalTok{ X1\_tilde\_loo }\SpecialCharTok{{-}} \DecValTok{1}\NormalTok{)}
+  
+  \FunctionTok{return}\NormalTok{(}\FunctionTok{coef}\NormalTok{(m2\_loo)[}\DecValTok{1}\NormalTok{])  }\CommentTok{\# Return beta estimate}
+\NormalTok{\}}
+\end{Highlighting}
+\end{Shaded}
+
+\subsection{Linear model with correlated predictors (n=100,
+rho=0.5)}\label{linear-model-with-correlated-predictors-n100-rho0.5}
+
+\subsubsection{Case for p/n very high
+(p/n=0.9)}\label{case-for-pn-very-high-pn0.9}
+
+First we generate a population of n individuals with p regressors:
+
+\begin{Shaded}
+\begin{Highlighting}[]
+\FunctionTok{set.seed}\NormalTok{(}\DecValTok{1}\NormalTok{)}
+\NormalTok{n }\OtherTok{\textless{}{-}} \DecValTok{100}
+\NormalTok{k }\OtherTok{\textless{}{-}} \FloatTok{1.1} \CommentTok{\# number of observations per coefficient}
+\NormalTok{p }\OtherTok{\textless{}{-}} \FunctionTok{floor}\NormalTok{(n}\SpecialCharTok{/}\NormalTok{k) }\CommentTok{\#number of variables}
+\NormalTok{beta }\OtherTok{\textless{}{-}} \FunctionTok{rep}\NormalTok{(}\FloatTok{0.5}\NormalTok{, p)}
+\NormalTok{rho }\OtherTok{\textless{}{-}} \FloatTok{0.6} \CommentTok{\#correlation}
+\NormalTok{Sigma }\OtherTok{\textless{}{-}} \FunctionTok{matrix}\NormalTok{(rho,p,p) }\CommentTok{\#correlation matrix}
+\FunctionTok{diag}\NormalTok{(Sigma) }\OtherTok{\textless{}{-}} \DecValTok{1}  \CommentTok{\# Set diagonal to 1 for variances}
+\NormalTok{mu }\OtherTok{\textless{}{-}} \FunctionTok{rep}\NormalTok{(}\DecValTok{0}\NormalTok{,p)}
+\NormalTok{X }\OtherTok{\textless{}{-}} \FunctionTok{mvrnorm}\NormalTok{(n, mu, Sigma) }\CommentTok{\# simplified setting: all predictors are orthogonal }
+\NormalTok{Y }\OtherTok{\textless{}{-}}\NormalTok{ X}\SpecialCharTok{\%*\%}\NormalTok{beta }\SpecialCharTok{+} \FunctionTok{rnorm}\NormalTok{(n)}
+\end{Highlighting}
+\end{Shaded}
+
+We fit first an OLS model with intercept which yields quite bad results:
+
+\begin{Shaded}
+\begin{Highlighting}[]
+\NormalTok{m1 }\OtherTok{\textless{}{-}} \FunctionTok{lm}\NormalTok{(Y }\SpecialCharTok{\textasciitilde{}}\NormalTok{ X)}
+\FunctionTok{coef}\NormalTok{(m1)[}\DecValTok{1}\SpecialCharTok{:}\DecValTok{10}\NormalTok{]}
+\end{Highlighting}
+\end{Shaded}
+
+\begin{verbatim}
+## (Intercept)          X1          X2          X3          X4          X5 
+##  -0.2926473   1.1864305   1.5901861   1.0055882   0.9358019   1.3114772 
+##          X6          X7          X8          X9 
+##  -0.3590001  -0.4728082   0.5839179   0.5560352
+\end{verbatim}
+
+We compute the estimate for X1 when partialling out (FWL theorem).
+
+\begin{Shaded}
+\begin{Highlighting}[]
+\NormalTok{mY }\OtherTok{\textless{}{-}} \FunctionTok{lm}\NormalTok{(Y }\SpecialCharTok{\textasciitilde{}}\NormalTok{ X[,}\SpecialCharTok{{-}}\DecValTok{1}\NormalTok{])}
+\NormalTok{mX1 }\OtherTok{\textless{}{-}} \FunctionTok{lm}\NormalTok{(X[,}\DecValTok{1}\NormalTok{] }\SpecialCharTok{\textasciitilde{}}\NormalTok{ X[,}\SpecialCharTok{{-}}\DecValTok{1}\NormalTok{])}
+\NormalTok{Y.tilde }\OtherTok{\textless{}{-}}\NormalTok{ mY}\SpecialCharTok{$}\NormalTok{residuals}
+\NormalTok{X1.tilde }\OtherTok{\textless{}{-}}\NormalTok{ mX1}\SpecialCharTok{$}\NormalTok{residuals}
+\NormalTok{m2 }\OtherTok{\textless{}{-}} \FunctionTok{lm}\NormalTok{(Y.tilde }\SpecialCharTok{\textasciitilde{}}\NormalTok{ X1.tilde }\SpecialCharTok{{-}}\DecValTok{1}\NormalTok{ ) }\CommentTok{\# no intercept }
+\end{Highlighting}
+\end{Shaded}
+
+OLS:
+
+\begin{Shaded}
+\begin{Highlighting}[]
+\FunctionTok{coef}\NormalTok{(}\FunctionTok{summary}\NormalTok{(m1))[}\DecValTok{2}\NormalTok{,]}
+\end{Highlighting}
+\end{Shaded}
+
+\begin{verbatim}
+##   Estimate Std. Error    t value   Pr(>|t|) 
+## 1.18643050 0.46585799 2.54676430 0.03136079
+\end{verbatim}
+
+Partialllng out:
+
+\begin{Shaded}
+\begin{Highlighting}[]
+\FunctionTok{coef}\NormalTok{(}\FunctionTok{summary}\NormalTok{(m2))}
+\end{Highlighting}
+\end{Shaded}
+
+\begin{verbatim}
+##          Estimate Std. Error  t value     Pr(>|t|)
+## X1.tilde  1.18643  0.1404615 8.446662 2.625596e-13
+\end{verbatim}
+
+Thanks to the FWL theorem we knew that the values of the estimates had
+to be the same. And due to the ratio p/n being small, the estimate is
+far from the real value of 0.5. We also see that the estimated S.E. is
+different in each model, with OLS's being higher and therefore more
+conservative although the real estimate would still be outside of the
+CI.The S.E. in the PO model is not expected to work well when p/n is
+very high as in this case.
+
+\textbf{NOTE:} I think that there is a lot to consider here. In general,
+even if p/n is small, you should not use the standard SE estimator
+because of the homokedasticity assumption. The problem is that even if
+your original model is homokedastic, nothing ensures you that the second
+step PO model will also be. It would always be better to use the sanwich
+estimator (Huber-White robust s.e.) or the jackknife estimator when
+partialling out. I have the intuition that in this case in which every
+regressor is independent to each other we do not introduce
+homokedasticiy to the second model and therefore both the usual s.e. and
+the Sandwich estimators behave very similarly. I should recheck this
+when I introduce correlated regressors and possibly theoretically. Apart
+from this, because p/n is very big, even robust s.e. will not behave
+correctly as mentioned in the manual (refering to the sandwich
+estimator: ``this standard error estimator formally works when p/n ≈ 0,
+but fails in settings where p/n is not small'')
+
+Now let's simulate the results for X1 a thousand times to get an idea of
+the performance of the different s.e. estimators:
+
+Due to jacknife being computationally heavy I will parallelize:
+
+\begin{Shaded}
+\begin{Highlighting}[]
+\NormalTok{num\_cores }\OtherTok{\textless{}{-}} \FunctionTok{detectCores}\NormalTok{() }\SpecialCharTok{{-}} \DecValTok{1}  \CommentTok{\# Use available cores minus one}
+\NormalTok{cl }\OtherTok{\textless{}{-}} \FunctionTok{makeCluster}\NormalTok{(num\_cores)}
+\FunctionTok{registerDoParallel}\NormalTok{(cl)}
+
+\NormalTok{N.sim }\OtherTok{\textless{}{-}} \DecValTok{1000}
+\NormalTok{beta.LR }\OtherTok{\textless{}{-}}\NormalTok{ beta.PO }\OtherTok{\textless{}{-}}\NormalTok{ SE.LR }\OtherTok{\textless{}{-}}\NormalTok{ SE.PO }\OtherTok{\textless{}{-}}\NormalTok{ SE.POHW  }\OtherTok{\textless{}{-}}\NormalTok{ SE.LRHW }\OtherTok{\textless{}{-}}\NormalTok{ SE.LRJN }\OtherTok{\textless{}{-}}\NormalTok{ SE.POJN }\OtherTok{\textless{}{-}} \FunctionTok{c}\NormalTok{()}
+\NormalTok{results }\OtherTok{\textless{}{-}} \FunctionTok{foreach}\NormalTok{(}\AttributeTok{i =} \DecValTok{1}\SpecialCharTok{:}\NormalTok{N.sim, }\AttributeTok{.combine =}\NormalTok{ rbind, }\AttributeTok{.packages =} \FunctionTok{c}\NormalTok{(}\StringTok{"sandwich"}\NormalTok{, }\StringTok{"boot"}\NormalTok{)) }\SpecialCharTok{\%dopar\%}\NormalTok{ \{}
+  
+\NormalTok{  beta }\OtherTok{\textless{}{-}} \FunctionTok{rep}\NormalTok{(}\FloatTok{0.5}\NormalTok{, p)}
+\NormalTok{  X }\OtherTok{\textless{}{-}} \FunctionTok{replicate}\NormalTok{(p, }\FunctionTok{rnorm}\NormalTok{(n))}
+\NormalTok{  Y }\OtherTok{\textless{}{-}}\NormalTok{ X }\SpecialCharTok{\%*\%}\NormalTok{ beta }\SpecialCharTok{+} \FunctionTok{rnorm}\NormalTok{(n)}
+  
+\NormalTok{  m1 }\OtherTok{\textless{}{-}} \FunctionTok{lm}\NormalTok{(Y }\SpecialCharTok{\textasciitilde{}}\NormalTok{ X)}
+\NormalTok{  mY }\OtherTok{\textless{}{-}} \FunctionTok{lm}\NormalTok{(Y }\SpecialCharTok{\textasciitilde{}}\NormalTok{ X[,}\SpecialCharTok{{-}}\DecValTok{1}\NormalTok{])}
+\NormalTok{  mX1 }\OtherTok{\textless{}{-}} \FunctionTok{lm}\NormalTok{(X[,}\DecValTok{1}\NormalTok{] }\SpecialCharTok{\textasciitilde{}}\NormalTok{ X[,}\SpecialCharTok{{-}}\DecValTok{1}\NormalTok{])}
+\NormalTok{  Y.tilde }\OtherTok{\textless{}{-}}\NormalTok{ mY}\SpecialCharTok{$}\NormalTok{residuals}
+\NormalTok{  X1.tilde }\OtherTok{\textless{}{-}}\NormalTok{ mX1}\SpecialCharTok{$}\NormalTok{residuals}
+\NormalTok{  m2 }\OtherTok{\textless{}{-}} \FunctionTok{lm}\NormalTok{(Y.tilde }\SpecialCharTok{\textasciitilde{}}\NormalTok{ X1.tilde }\SpecialCharTok{{-}}\DecValTok{1}\NormalTok{)}
+  
+\NormalTok{  beta\_LR }\OtherTok{\textless{}{-}} \FunctionTok{coef}\NormalTok{(}\FunctionTok{summary}\NormalTok{(m1))[}\DecValTok{2}\NormalTok{, }\DecValTok{1}\NormalTok{]}
+\NormalTok{  SE\_LR }\OtherTok{\textless{}{-}} \FunctionTok{coef}\NormalTok{(}\FunctionTok{summary}\NormalTok{(m1))[}\DecValTok{2}\NormalTok{, }\DecValTok{2}\NormalTok{]}
+\NormalTok{  SE\_LRHW }\OtherTok{\textless{}{-}} \FunctionTok{sqrt}\NormalTok{(}\FunctionTok{diag}\NormalTok{(}\FunctionTok{vcovHC}\NormalTok{(m1, }\AttributeTok{type =} \StringTok{"HC0"}\NormalTok{))[}\DecValTok{2}\NormalTok{])}
+\NormalTok{  SE\_LRJN }\OtherTok{\textless{}{-}} \FunctionTok{sqrt}\NormalTok{(}\FunctionTok{diag}\NormalTok{(}\FunctionTok{vcovHC}\NormalTok{(m1, }\AttributeTok{type =} \StringTok{"HC3"}\NormalTok{))[}\DecValTok{2}\NormalTok{])}
+  
+\NormalTok{  beta\_PO }\OtherTok{\textless{}{-}} \FunctionTok{coef}\NormalTok{(}\FunctionTok{summary}\NormalTok{(m2))[}\DecValTok{1}\NormalTok{]}
+\NormalTok{  SE\_PO }\OtherTok{\textless{}{-}} \FunctionTok{coef}\NormalTok{(}\FunctionTok{summary}\NormalTok{(m2))[}\DecValTok{2}\NormalTok{]}
+\NormalTok{  SE\_POHW }\OtherTok{\textless{}{-}} \FunctionTok{sqrt}\NormalTok{(}\FunctionTok{vcovHC}\NormalTok{(m2, }\AttributeTok{type =} \StringTok{"HC0"}\NormalTok{))}
+  
+\NormalTok{  data\_list }\OtherTok{\textless{}{-}} \FunctionTok{data.frame}\NormalTok{(}\AttributeTok{Y =}\NormalTok{ Y, X)}
+\NormalTok{  jack\_res }\OtherTok{\textless{}{-}} \FunctionTok{boot}\NormalTok{(}\AttributeTok{data =}\NormalTok{ data\_list, }
+                   \AttributeTok{statistic =}\NormalTok{ jackknife\_po\_fn, }
+                   \AttributeTok{R =}\NormalTok{ n,  }
+                   \AttributeTok{sim =} \StringTok{"ordinary"}\NormalTok{)}
+\NormalTok{  SE\_POJN }\OtherTok{\textless{}{-}} \FunctionTok{sqrt}\NormalTok{((n }\SpecialCharTok{{-}} \DecValTok{1}\NormalTok{) }\SpecialCharTok{/}\NormalTok{ n }\SpecialCharTok{*} \FunctionTok{var}\NormalTok{(jack\_res}\SpecialCharTok{$}\NormalTok{t))}
+  
+  \FunctionTok{c}\NormalTok{(beta\_LR, SE\_LR, SE\_LRHW, SE\_LRJN, beta\_PO, SE\_PO, SE\_POHW, SE\_POJN)}
+\NormalTok{\}}
+
+\FunctionTok{stopCluster}\NormalTok{(cl)}
+
+\CommentTok{\# Convert results to a data frame}
+\NormalTok{results\_df }\OtherTok{\textless{}{-}} \FunctionTok{as.data.frame}\NormalTok{(results)}
+\FunctionTok{colnames}\NormalTok{(results\_df) }\OtherTok{\textless{}{-}} \FunctionTok{c}\NormalTok{(}\StringTok{"beta.LR"}\NormalTok{, }\StringTok{"SE.LR"}\NormalTok{, }\StringTok{"SE.LRHW"}\NormalTok{, }\StringTok{"SE.LRJN"}\NormalTok{, }\StringTok{"beta.PO"}\NormalTok{, }\StringTok{"SE.PO"}\NormalTok{, }\StringTok{"SE.POHW"}\NormalTok{,  }\StringTok{"SE.POJN"}\NormalTok{)}
+\end{Highlighting}
+\end{Shaded}
+
+\begin{Shaded}
+\begin{Highlighting}[]
+\NormalTok{mean\_table }\OtherTok{\textless{}{-}} \FunctionTok{data.frame}\NormalTok{(}
+  \AttributeTok{Statistic =} \StringTok{"Mean"}\NormalTok{,}
+  \FunctionTok{t}\NormalTok{(}\FunctionTok{colMeans}\NormalTok{(results\_df, }\AttributeTok{na.rm =} \ConstantTok{TRUE}\NormalTok{))  }\CommentTok{\# Transpose to make it a row}
+\NormalTok{)}
+\NormalTok{mean\_table}
+\end{Highlighting}
+\end{Shaded}
+
+\begin{verbatim}
+##   Statistic  beta.LR     SE.LR    SE.LRHW  SE.LRJN  beta.PO     SE.PO
+## 1      Mean 0.502617 0.3335074 0.09885051 1.251345 0.502617 0.1005563
+##      SE.POHW  SE.POJN
+## 1 0.09885051 5.314561
+\end{verbatim}
+
+Indeed, we see that the usual OLS S.E. has a very good performance when
+compared to the Monte Carlo estimator. The three S.E. computed through
+the PO model are quite far from the actual one. The fact that they seem
+to be consistently smaller is very problematic if we wanted to compute
+confidence intervals.
+
+\textbf{NOTE:} When performing the jackknife estimator when partialling
+out we should first remove the correspondent observation for the
+Leave-one-out and then compute both steps of the method. Applying HC3 to
+the second regression does not really function as a jackknife for the PO
+model.
+
+\subsubsection{Case for p/n high
+(p/n=0.5)}\label{case-for-pn-high-pn0.5}
+
+We fit first an OLS model with intercept which yields somewhat better
+results:
+
+\begin{verbatim}
+## (Intercept)          X1          X2          X3          X4          X5 
+## -0.08920452  0.47609210  0.55626645  0.28389366  0.68435002  0.46856785 
+##          X6          X7          X8          X9 
+##  0.73464906  0.43395315  0.71626378  0.45615883
+\end{verbatim}
+
+We compute the estimate for X1 when partialling out (FWL theorem).
+
+OLS:
+
+\begin{verbatim}
+##     Estimate   Std. Error      t value     Pr(>|t|) 
+## 0.4760920994 0.1307507163 3.6412198170 0.0006533358
+\end{verbatim}
+
+Partialllng out:
+
+\begin{verbatim}
+##           Estimate Std. Error  t value     Pr(>|t|)
+## X1.tilde 0.4760921 0.09198659 5.175669 1.191479e-06
+\end{verbatim}
+
+Now, due to the ratio p/n being bigger, the estimate is much closer to
+the real value of 0.5. We continue to see that the estimated S.D. is
+different in each model, with OLS's again being higher and therefore
+more conservative. In this case both C.I. encompass the real value.
+
+Let's run the simulations:
+
+\begin{Shaded}
+\begin{Highlighting}[]
+\NormalTok{num\_cores }\OtherTok{\textless{}{-}} \FunctionTok{detectCores}\NormalTok{() }\SpecialCharTok{{-}} \DecValTok{1}  \CommentTok{\# Use available cores minus one}
+\NormalTok{cl }\OtherTok{\textless{}{-}} \FunctionTok{makeCluster}\NormalTok{(num\_cores)}
+\FunctionTok{registerDoParallel}\NormalTok{(cl)}
+
+\NormalTok{N.sim }\OtherTok{\textless{}{-}} \DecValTok{1000}
+\NormalTok{beta.LR }\OtherTok{\textless{}{-}}\NormalTok{ beta.PO }\OtherTok{\textless{}{-}}\NormalTok{ SE.LR }\OtherTok{\textless{}{-}}\NormalTok{ SE.PO }\OtherTok{\textless{}{-}}\NormalTok{ SE.POHW  }\OtherTok{\textless{}{-}}\NormalTok{ SE.LRHW }\OtherTok{\textless{}{-}}\NormalTok{ SE.LRJN }\OtherTok{\textless{}{-}}\NormalTok{ SE.POJN }\OtherTok{\textless{}{-}} \FunctionTok{c}\NormalTok{()}
+\NormalTok{results }\OtherTok{\textless{}{-}} \FunctionTok{foreach}\NormalTok{(}\AttributeTok{i =} \DecValTok{1}\SpecialCharTok{:}\NormalTok{N.sim, }\AttributeTok{.combine =}\NormalTok{ rbind, }\AttributeTok{.packages =} \FunctionTok{c}\NormalTok{(}\StringTok{"sandwich"}\NormalTok{, }\StringTok{"boot"}\NormalTok{)) }\SpecialCharTok{\%dopar\%}\NormalTok{ \{}
+  
+\NormalTok{  beta }\OtherTok{\textless{}{-}} \FunctionTok{rep}\NormalTok{(}\FloatTok{0.5}\NormalTok{, p)}
+\NormalTok{  X }\OtherTok{\textless{}{-}} \FunctionTok{replicate}\NormalTok{(p, }\FunctionTok{rnorm}\NormalTok{(n))}
+\NormalTok{  Y }\OtherTok{\textless{}{-}}\NormalTok{ X }\SpecialCharTok{\%*\%}\NormalTok{ beta }\SpecialCharTok{+} \FunctionTok{rnorm}\NormalTok{(n)}
+  
+\NormalTok{  m1 }\OtherTok{\textless{}{-}} \FunctionTok{lm}\NormalTok{(Y }\SpecialCharTok{\textasciitilde{}}\NormalTok{ X)}
+\NormalTok{  mY }\OtherTok{\textless{}{-}} \FunctionTok{lm}\NormalTok{(Y }\SpecialCharTok{\textasciitilde{}}\NormalTok{ X[,}\SpecialCharTok{{-}}\DecValTok{1}\NormalTok{])}
+\NormalTok{  mX1 }\OtherTok{\textless{}{-}} \FunctionTok{lm}\NormalTok{(X[,}\DecValTok{1}\NormalTok{] }\SpecialCharTok{\textasciitilde{}}\NormalTok{ X[,}\SpecialCharTok{{-}}\DecValTok{1}\NormalTok{])}
+\NormalTok{  Y.tilde }\OtherTok{\textless{}{-}}\NormalTok{ mY}\SpecialCharTok{$}\NormalTok{residuals}
+\NormalTok{  X1.tilde }\OtherTok{\textless{}{-}}\NormalTok{ mX1}\SpecialCharTok{$}\NormalTok{residuals}
+\NormalTok{  m2 }\OtherTok{\textless{}{-}} \FunctionTok{lm}\NormalTok{(Y.tilde }\SpecialCharTok{\textasciitilde{}}\NormalTok{ X1.tilde }\SpecialCharTok{{-}}\DecValTok{1}\NormalTok{)}
+  
+\NormalTok{  beta\_LR }\OtherTok{\textless{}{-}} \FunctionTok{coef}\NormalTok{(}\FunctionTok{summary}\NormalTok{(m1))[}\DecValTok{2}\NormalTok{, }\DecValTok{1}\NormalTok{]}
+\NormalTok{  SE\_LR }\OtherTok{\textless{}{-}} \FunctionTok{coef}\NormalTok{(}\FunctionTok{summary}\NormalTok{(m1))[}\DecValTok{2}\NormalTok{, }\DecValTok{2}\NormalTok{]}
+\NormalTok{  SE\_LRHW }\OtherTok{\textless{}{-}} \FunctionTok{sqrt}\NormalTok{(}\FunctionTok{diag}\NormalTok{(}\FunctionTok{vcovHC}\NormalTok{(m1, }\AttributeTok{type =} \StringTok{"HC0"}\NormalTok{))[}\DecValTok{2}\NormalTok{])}
+\NormalTok{  SE\_LRJN }\OtherTok{\textless{}{-}} \FunctionTok{sqrt}\NormalTok{(}\FunctionTok{diag}\NormalTok{(}\FunctionTok{vcovHC}\NormalTok{(m1, }\AttributeTok{type =} \StringTok{"HC3"}\NormalTok{))[}\DecValTok{2}\NormalTok{])}
+  
+\NormalTok{  beta\_PO }\OtherTok{\textless{}{-}} \FunctionTok{coef}\NormalTok{(}\FunctionTok{summary}\NormalTok{(m2))[}\DecValTok{1}\NormalTok{]}
+\NormalTok{  SE\_PO }\OtherTok{\textless{}{-}} \FunctionTok{coef}\NormalTok{(}\FunctionTok{summary}\NormalTok{(m2))[}\DecValTok{2}\NormalTok{]}
+\NormalTok{  SE\_POHW }\OtherTok{\textless{}{-}} \FunctionTok{sqrt}\NormalTok{(}\FunctionTok{vcovHC}\NormalTok{(m2, }\AttributeTok{type =} \StringTok{"HC0"}\NormalTok{))}
+  
+\NormalTok{  data\_list }\OtherTok{\textless{}{-}} \FunctionTok{data.frame}\NormalTok{(}\AttributeTok{Y =}\NormalTok{ Y, X)}
+\NormalTok{  jack\_res }\OtherTok{\textless{}{-}} \FunctionTok{boot}\NormalTok{(}\AttributeTok{data =}\NormalTok{ data\_list, }
+                   \AttributeTok{statistic =}\NormalTok{ jackknife\_po\_fn, }
+                   \AttributeTok{R =}\NormalTok{ n,  }
+                   \AttributeTok{sim =} \StringTok{"ordinary"}\NormalTok{)}
+\NormalTok{  SE\_POJN }\OtherTok{\textless{}{-}} \FunctionTok{sqrt}\NormalTok{((n }\SpecialCharTok{{-}} \DecValTok{1}\NormalTok{) }\SpecialCharTok{/}\NormalTok{ n }\SpecialCharTok{*} \FunctionTok{var}\NormalTok{(jack\_res}\SpecialCharTok{$}\NormalTok{t))}
+  
+  \FunctionTok{c}\NormalTok{(beta\_LR, SE\_LR, SE\_LRHW, SE\_LRJN, beta\_PO, SE\_PO, SE\_POHW, SE\_POJN)}
+\NormalTok{\}}
+
+\FunctionTok{stopCluster}\NormalTok{(cl)}
+
+\CommentTok{\# Convert results to a data frame}
+\NormalTok{results\_df }\OtherTok{\textless{}{-}} \FunctionTok{as.data.frame}\NormalTok{(results)}
+\FunctionTok{colnames}\NormalTok{(results\_df) }\OtherTok{\textless{}{-}} \FunctionTok{c}\NormalTok{(}\StringTok{"beta.LR"}\NormalTok{, }\StringTok{"SE.LR"}\NormalTok{, }\StringTok{"SE.LRHW"}\NormalTok{, }\StringTok{"SE.LRJN"}\NormalTok{, }\StringTok{"beta.PO"}\NormalTok{, }\StringTok{"SE.PO"}\NormalTok{, }\StringTok{"SE.POHW"}\NormalTok{,  }\StringTok{"SE.POJN"}\NormalTok{)}
+\end{Highlighting}
+\end{Shaded}
+
+\begin{verbatim}
+##   Statistic   beta.LR     SE.LR    SE.LRHW   SE.LRJN   beta.PO     SE.PO
+## 1      Mean 0.5020036 0.1417856 0.09800343 0.2061215 0.5020036 0.0997499
+##      SE.POHW   SE.POJN
+## 1 0.09800343 0.2741981
+\end{verbatim}
+
+The LR s.e. continues to greatly outperform the PO s.e. although this
+time they are significantly closer. The three PO s.e. continue to behave
+similarly, which to me points even more to homokedasticity due to how
+the regressors were created.
+
+\subsubsection{Case for p/n small
+(p/n=0.05)}\label{case-for-pn-small-pn0.05}
+
+We fit first an OLS model with intercept which yields much better
+results:
+
+\begin{verbatim}
+## (Intercept)          X1          X2          X3          X4          X5 
+## -0.02953446  0.38795776  0.48188243  0.47398551  0.40398547  0.44233768
+\end{verbatim}
+
+We compute the estimate for X1 when partialling out (FWL theorem).
+
+OLS:
+
+\begin{verbatim}
+##     Estimate   Std. Error      t value     Pr(>|t|) 
+## 0.3879577610 0.1107560842 3.5028121841 0.0007065748
+\end{verbatim}
+
+Partialllng out:
+
+\begin{verbatim}
+##           Estimate Std. Error  t value     Pr(>|t|)
+## X1.tilde 0.3879578   0.107923 3.594765 0.0005082119
+\end{verbatim}
+
+This time in particular X1's estimate is the worse out of the 5. It is
+worse than for the previous case where p/n=0.5, although in general the
+model worked better now. The SD of normal OLS and Partialling out now
+are very similar and the real value is inside the C.I.
+
+\begin{Shaded}
+\begin{Highlighting}[]
+\NormalTok{num\_cores }\OtherTok{\textless{}{-}} \FunctionTok{detectCores}\NormalTok{() }\SpecialCharTok{{-}} \DecValTok{1}  \CommentTok{\# Use available cores minus one}
+\NormalTok{cl }\OtherTok{\textless{}{-}} \FunctionTok{makeCluster}\NormalTok{(num\_cores)}
+\FunctionTok{registerDoParallel}\NormalTok{(cl)}
+
+\NormalTok{N.sim }\OtherTok{\textless{}{-}} \DecValTok{1000}
+\NormalTok{beta.LR }\OtherTok{\textless{}{-}}\NormalTok{ beta.PO }\OtherTok{\textless{}{-}}\NormalTok{ SE.LR }\OtherTok{\textless{}{-}}\NormalTok{ SE.PO }\OtherTok{\textless{}{-}}\NormalTok{ SE.POHW  }\OtherTok{\textless{}{-}}\NormalTok{ SE.LRHW }\OtherTok{\textless{}{-}}\NormalTok{ SE.LRJN }\OtherTok{\textless{}{-}}\NormalTok{ SE.POJN }\OtherTok{\textless{}{-}} \FunctionTok{c}\NormalTok{()}
+\NormalTok{results }\OtherTok{\textless{}{-}} \FunctionTok{foreach}\NormalTok{(}\AttributeTok{i =} \DecValTok{1}\SpecialCharTok{:}\NormalTok{N.sim, }\AttributeTok{.combine =}\NormalTok{ rbind, }\AttributeTok{.packages =} \FunctionTok{c}\NormalTok{(}\StringTok{"sandwich"}\NormalTok{, }\StringTok{"boot"}\NormalTok{)) }\SpecialCharTok{\%dopar\%}\NormalTok{ \{}
+  
+\NormalTok{  beta }\OtherTok{\textless{}{-}} \FunctionTok{rep}\NormalTok{(}\FloatTok{0.5}\NormalTok{, p)}
+\NormalTok{  X }\OtherTok{\textless{}{-}} \FunctionTok{replicate}\NormalTok{(p, }\FunctionTok{rnorm}\NormalTok{(n))}
+\NormalTok{  Y }\OtherTok{\textless{}{-}}\NormalTok{ X }\SpecialCharTok{\%*\%}\NormalTok{ beta }\SpecialCharTok{+} \FunctionTok{rnorm}\NormalTok{(n)}
+  
+\NormalTok{  m1 }\OtherTok{\textless{}{-}} \FunctionTok{lm}\NormalTok{(Y }\SpecialCharTok{\textasciitilde{}}\NormalTok{ X)}
+\NormalTok{  mY }\OtherTok{\textless{}{-}} \FunctionTok{lm}\NormalTok{(Y }\SpecialCharTok{\textasciitilde{}}\NormalTok{ X[,}\SpecialCharTok{{-}}\DecValTok{1}\NormalTok{])}
+\NormalTok{  mX1 }\OtherTok{\textless{}{-}} \FunctionTok{lm}\NormalTok{(X[,}\DecValTok{1}\NormalTok{] }\SpecialCharTok{\textasciitilde{}}\NormalTok{ X[,}\SpecialCharTok{{-}}\DecValTok{1}\NormalTok{])}
+\NormalTok{  Y.tilde }\OtherTok{\textless{}{-}}\NormalTok{ mY}\SpecialCharTok{$}\NormalTok{residuals}
+\NormalTok{  X1.tilde }\OtherTok{\textless{}{-}}\NormalTok{ mX1}\SpecialCharTok{$}\NormalTok{residuals}
+\NormalTok{  m2 }\OtherTok{\textless{}{-}} \FunctionTok{lm}\NormalTok{(Y.tilde }\SpecialCharTok{\textasciitilde{}}\NormalTok{ X1.tilde }\SpecialCharTok{{-}}\DecValTok{1}\NormalTok{)}
+  
+\NormalTok{  beta\_LR }\OtherTok{\textless{}{-}} \FunctionTok{coef}\NormalTok{(}\FunctionTok{summary}\NormalTok{(m1))[}\DecValTok{2}\NormalTok{, }\DecValTok{1}\NormalTok{]}
+\NormalTok{  SE\_LR }\OtherTok{\textless{}{-}} \FunctionTok{coef}\NormalTok{(}\FunctionTok{summary}\NormalTok{(m1))[}\DecValTok{2}\NormalTok{, }\DecValTok{2}\NormalTok{]}
+\NormalTok{  SE\_LRHW }\OtherTok{\textless{}{-}} \FunctionTok{sqrt}\NormalTok{(}\FunctionTok{diag}\NormalTok{(}\FunctionTok{vcovHC}\NormalTok{(m1, }\AttributeTok{type =} \StringTok{"HC0"}\NormalTok{))[}\DecValTok{2}\NormalTok{])}
+\NormalTok{  SE\_LRJN }\OtherTok{\textless{}{-}} \FunctionTok{sqrt}\NormalTok{(}\FunctionTok{diag}\NormalTok{(}\FunctionTok{vcovHC}\NormalTok{(m1, }\AttributeTok{type =} \StringTok{"HC3"}\NormalTok{))[}\DecValTok{2}\NormalTok{])}
+  
+\NormalTok{  beta\_PO }\OtherTok{\textless{}{-}} \FunctionTok{coef}\NormalTok{(}\FunctionTok{summary}\NormalTok{(m2))[}\DecValTok{1}\NormalTok{]}
+\NormalTok{  SE\_PO }\OtherTok{\textless{}{-}} \FunctionTok{coef}\NormalTok{(}\FunctionTok{summary}\NormalTok{(m2))[}\DecValTok{2}\NormalTok{]}
+\NormalTok{  SE\_POHW }\OtherTok{\textless{}{-}} \FunctionTok{sqrt}\NormalTok{(}\FunctionTok{vcovHC}\NormalTok{(m2, }\AttributeTok{type =} \StringTok{"HC0"}\NormalTok{))}
+  
+\NormalTok{  data\_list }\OtherTok{\textless{}{-}} \FunctionTok{data.frame}\NormalTok{(}\AttributeTok{Y =}\NormalTok{ Y, X)}
+\NormalTok{  jack\_res }\OtherTok{\textless{}{-}} \FunctionTok{boot}\NormalTok{(}\AttributeTok{data =}\NormalTok{ data\_list, }
+                   \AttributeTok{statistic =}\NormalTok{ jackknife\_po\_fn, }
+                   \AttributeTok{R =}\NormalTok{ n,  }
+                   \AttributeTok{sim =} \StringTok{"ordinary"}\NormalTok{)}
+\NormalTok{  SE\_POJN }\OtherTok{\textless{}{-}} \FunctionTok{sqrt}\NormalTok{((n }\SpecialCharTok{{-}} \DecValTok{1}\NormalTok{) }\SpecialCharTok{/}\NormalTok{ n }\SpecialCharTok{*} \FunctionTok{var}\NormalTok{(jack\_res}\SpecialCharTok{$}\NormalTok{t))}
+  
+  \FunctionTok{c}\NormalTok{(beta\_LR, SE\_LR, SE\_LRHW, SE\_LRJN, beta\_PO, SE\_PO, SE\_POHW, SE\_POJN)}
+\NormalTok{\}}
+
+\FunctionTok{stopCluster}\NormalTok{(cl)}
+
+\CommentTok{\# Convert results to a data frame}
+\NormalTok{results\_df }\OtherTok{\textless{}{-}} \FunctionTok{as.data.frame}\NormalTok{(results)}
+\FunctionTok{colnames}\NormalTok{(results\_df) }\OtherTok{\textless{}{-}} \FunctionTok{c}\NormalTok{(}\StringTok{"beta.LR"}\NormalTok{, }\StringTok{"SE.LR"}\NormalTok{, }\StringTok{"SE.LRHW"}\NormalTok{, }\StringTok{"SE.LRJN"}\NormalTok{, }\StringTok{"beta.PO"}\NormalTok{, }\StringTok{"SE.PO"}\NormalTok{, }\StringTok{"SE.POHW"}\NormalTok{,  }\StringTok{"SE.POJN"}\NormalTok{)}
+\end{Highlighting}
+\end{Shaded}
+
+\begin{verbatim}
+##   Statistic   beta.LR     SE.LR    SE.LRHW   SE.LRJN   beta.PO     SE.PO
+## 1      Mean 0.4949896 0.1031785 0.09802961 0.1063741 0.4949896 0.1005392
+##      SE.POHW   SE.POJN
+## 1 0.09802961 0.1021607
+\end{verbatim}
+
+Now that p/n can be considered small (although usually we would want
+p/n\textless0.1), the s.e. derived from the PO model are very similar to
+the usual s.e. and also to the monte carlo s.d. This little exercise
+clearly shows the problem of using inference when using PO if p/n is
+big.
+
+\end{document}
