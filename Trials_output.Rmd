@@ -12,7 +12,13 @@ knitr::opts_chunk$set(echo = TRUE)
 library(sandwich)   # For Huber-White (robust) standard errors
 library(boot) 
 library(dplyr)
+library(MASS)
+library(doParallel)
+library(ggplot2)
+library(reshape2)
+library(lmtest)
 ```
+
 
 ```{r}
 jackknife_po_fn <- function(data, indices) {
@@ -80,44 +86,65 @@ Thanks to the FWL theorem we knew that the values of the estimates had to be the
 Now let's simulate the results for X1 a thousand times to get an idea of the performance of the different s.e. estimators:
 
 ```{r}
+# Detect available cores
+num_cores <- detectCores() - 1  # Use available cores minus one to avoid system overload
+cl <- makeCluster(num_cores)
+registerDoParallel(cl)
+
+# Number of simulations
 N.sim <- 1000
-beta.LR <- beta.PO <- SE.LR <- SE.PO <- SE.POHW <- SE.POJN <- SE.LRHW <- SE.LRJN <- SE.POJN2 <- c()
-for(i in 1:N.sim)
-{
-  beta <- rep(0.5, p)
+
+# Run parallel computation
+results <- foreach(i = 1:N.sim, .combine = rbind, .packages = c("sandwich", "boot")) %dopar% {
+  
   X <- replicate(p, rnorm(n)) 
-  Y <- X%*%beta + rnorm(n)
+  Y <- X %*% beta + rnorm(n)
+
+  # OLS Model
   m1 <- lm(Y ~ X)
   mY <- lm(Y ~ X[,-1])
   mX1 <- lm(X[,1] ~ X[,-1])
   Y.tilde <- mY$residuals
   X1.tilde <- mX1$residuals
-  m2 <- lm(Y.tilde ~ X1.tilde -1 ) 
-  beta.LR[i] <- coef(summary(m1))[2,1]
-  SE.LR[i] <- coef(summary(m1))[2,2]
-  SE.LRHW[i] <- sqrt(diag(vcovHC(m1, type = "HC0"))[2])# Huber-White SE
-  SE.LRJN[i] <- sqrt(diag(vcovHC(m1, type = "HC3"))[2])# jackknife 
-  beta.PO[i] <- coef(summary(m2))[1] 
-  SE.PO[i] <- coef(summary(m2))[2] 
-  SE.POHW[i] <- sqrt(vcovHC(m2, type = "HC0"))# Huber-White SE
-  SE.POJN[i] <- sqrt(vcovHC(m2, type = "HC3"))# jackknife 
+  m2 <- lm(Y.tilde ~ X1.tilde -1)
+
+  # Compute coefficients and standard errors
+  beta_LR <- coef(summary(m1))[2,1]
+  SE_LR <- coef(summary(m1))[2,2]
+  SE_LRHW <- sqrt(diag(vcovHC(m1, type = "HC0"))[2])  # Huber-White SE
+  SE_LRJN <- sqrt(diag(vcovHC(m1, type = "HC3"))[2])  # Jackknife SE
+  
+  beta_PO <- coef(summary(m2))[1]
+  SE_PO <- coef(summary(m2))[2]
+  SE_POHW <- sqrt(vcovHC(m2, type = "HC0"))  # Huber-White SE
+  SE_POJN <- sqrt(vcovHC(m2, type = "HC3"))  # Jackknife SE
+
+  # Jackknife Resampling
   data_list <- data.frame(Y = Y, X)
   jack_res <- boot(data = data_list, 
-                 statistic = jackknife_po_fn, 
-                 R = n,  # Leave-one-out resampling
-                 sim = "ordinary")
-  SE.POJN2[i] <- sqrt((n - 1) / n * var(jack_res$t))
-    
+                   statistic = jackknife_po_fn, 
+                   R = n,  
+                   sim = "ordinary")
+  SE_POJN2 <- sqrt((n - 1) / n * var(jack_res$t))
+  
+  # Return results as a row
+  c(beta_LR, SE_LR, SE_LRHW, SE_LRJN, beta_PO, SE_PO, SE_POHW, SE_POJN, SE_POJN2)
 }
+
+# Stop the parallel cluster
+stopCluster(cl)
+
+# Convert results to a data frame
+results_df <- as.data.frame(results)
+colnames(results_df) <- c("beta.LR", "SE.LR", "SE.LRHW", "SE.LRJN", "beta.PO", "SE.PO", "SE.POHW", "SE.POJN", "SE.POJN2")
+
 ```
 
 
-```{r}
-results_table <- data.frame(
-  Metric = c("Mean estimate LR", "Mean estimate PO", "SD LR", "SD PO",
-             "Mean SE LR", "Mean SE LRHW","Mean SE LRJN","Mean SE PO", "Mean SE POHW", "Mean SE POJN", "Mean SE POJN2"),
-  Value = c(mean(beta.LR), mean(beta.PO), sd(beta.LR), sd(beta.PO),
-            mean(SE.LR), mean(SE.LRHW),mean(SE.LRJN),mean(SE.PO), mean(SE.POHW), mean(SE.POJN), mean(SE.POJN2))
+```{r,echo=FALSE}
+results_table <- rbind(
+  Mean = colMeans(results_df, na.rm = TRUE),  
+  SD = apply(results_df, 2, sd, na.rm = TRUE)  
 )
 results_table
 ```
@@ -125,6 +152,38 @@ results_table
 Indeed, we see that the usual OLS S.E. has a very good performance when compared to the Monte Carlo estimator. The three S.E. computed through the PO model are quite far from the actual one. The fact that they seem to be consistently smaller is very problematic if we wanted to compute confidence intervals.
 
 **NOTE:** When performing the jackknife estimator when partialling out we should first remove the correspondent observation for the Leave-one-out and then compute both steps of the method. Applying HC3 to the second regression does not really function as a jackknife for the PO model.
+
+```{r,echo=FALSE}
+# Convert results_df to long format for ggplot
+results_long <- melt(results_df[, c("SE.LR", "SE.LRHW", "SE.LRJN", "SE.PO", "SE.POHW", "SE.POJN")])
+
+# Identify JN SE variables
+JN_vars <- c("SE.LRJN", "SE.POJN")
+
+# Compute the 95th percentile **only** for JN SE variables
+quantiles_JN <- results_long %>%
+  filter(variable %in% JN_vars) %>%
+  group_by(variable) %>%
+  summarise(upper = quantile(value, 0.95, na.rm = TRUE))
+
+# Merge quantiles only for JN variables
+results_filtered <- results_long %>%
+  left_join(quantiles_JN, by = "variable") %>%
+  mutate(value = ifelse(variable %in% JN_vars & value > upper, NA, value)) %>%
+  filter(!is.na(value))  # Remove NA values from JN variables
+
+# Compute the standard deviation of beta.LR
+beta_LR_sd <- sd(results_df$beta.LR, na.rm = TRUE)
+
+# Plot histograms with individual y-axes
+ggplot(results_filtered, aes(x = value)) +
+  geom_histogram(binwidth = 0.025, fill = "blue", alpha = 0.6, color = "black") +
+  facet_wrap(~variable, scales = "free") +  # Free scales for both x and y axes
+  geom_vline(xintercept = beta_LR_sd, color = "red", linetype = "dashed", size = 1) + # Red vertical line
+  theme_minimal() +
+  labs(title = "Histograms of Standard Errors (Top 5% Removed for Jackknife)", 
+       x = "Value", y = "Frequency")
+```
 
 ### Case for p/n high (p/n=0.5)
 
@@ -168,49 +227,100 @@ Now, due to the ratio p/n being bigger, the estimate is much closer to the real 
 Let's run the simulations:
 
 ```{r, echo=FALSE}
+# Detect available cores
+num_cores <- detectCores() - 1  # Use available cores minus one to avoid system overload
+cl <- makeCluster(num_cores)
+registerDoParallel(cl)
+
+# Number of simulations
 N.sim <- 1000
-beta.LR <- beta.PO <- SE.LR <- SE.PO <- SE.POHW <- SE.POJN <- SE.LRHW <- SE.LRJN <- SE.POJN2 <- c()
-for(i in 1:N.sim)
-{
-  beta <- rep(0.5, p)
+
+# Run parallel computation
+results <- foreach(i = 1:N.sim, .combine = rbind, .packages = c("sandwich", "boot")) %dopar% {
+  
   X <- replicate(p, rnorm(n)) 
-  Y <- X%*%beta + rnorm(n)
+  Y <- X %*% beta + rnorm(n)
+
+  # OLS Model
   m1 <- lm(Y ~ X)
   mY <- lm(Y ~ X[,-1])
   mX1 <- lm(X[,1] ~ X[,-1])
   Y.tilde <- mY$residuals
   X1.tilde <- mX1$residuals
-  m2 <- lm(Y.tilde ~ X1.tilde -1 ) 
-  beta.LR[i] <- coef(summary(m1))[2,1]
-  SE.LR[i] <- coef(summary(m1))[2,2]
-  SE.LRHW[i] <- sqrt(diag(vcovHC(m1, type = "HC0"))[2])# Huber-White SE
-  SE.LRJN[i] <- sqrt(diag(vcovHC(m1, type = "HC3"))[2])# jackknife 
-  beta.PO[i] <- coef(summary(m2))[1] 
-  SE.PO[i] <- coef(summary(m2))[2] 
-  SE.POHW[i] <- sqrt(vcovHC(m2, type = "HC0"))# Huber-White SE
-  SE.POJN[i] <- sqrt(vcovHC(m2, type = "HC3"))# jackknife 
+  m2 <- lm(Y.tilde ~ X1.tilde -1)
+
+  # Compute coefficients and standard errors
+  beta_LR <- coef(summary(m1))[2,1]
+  SE_LR <- coef(summary(m1))[2,2]
+  SE_LRHW <- sqrt(diag(vcovHC(m1, type = "HC0"))[2])  # Huber-White SE
+  SE_LRJN <- sqrt(diag(vcovHC(m1, type = "HC3"))[2])  # Jackknife SE
+  
+  beta_PO <- coef(summary(m2))[1]
+  SE_PO <- coef(summary(m2))[2]
+  SE_POHW <- sqrt(vcovHC(m2, type = "HC0"))  # Huber-White SE
+  SE_POJN <- sqrt(vcovHC(m2, type = "HC3"))  # Jackknife SE
+
+  # Jackknife Resampling
   data_list <- data.frame(Y = Y, X)
   jack_res <- boot(data = data_list, 
-                 statistic = jackknife_po_fn, 
-                 R = n,  # Leave-one-out resampling
-                 sim = "ordinary")
-  SE.POJN2[i] <- sqrt((n - 1) / n * var(jack_res$t))
-    
+                   statistic = jackknife_po_fn, 
+                   R = n,  
+                   sim = "ordinary")
+  SE_POJN2 <- sqrt((n - 1) / n * var(jack_res$t))
+  
+  # Return results as a row
+  c(beta_LR, SE_LR, SE_LRHW, SE_LRJN, beta_PO, SE_PO, SE_POHW, SE_POJN, SE_POJN2)
 }
+
+# Stop the parallel cluster
+stopCluster(cl)
+
+# Convert results to a data frame
+results_df <- as.data.frame(results)
+colnames(results_df) <- c("beta.LR", "SE.LR", "SE.LRHW", "SE.LRJN", "beta.PO", "SE.PO", "SE.POHW", "SE.POJN", "SE.POJN2")
 ```
 
-```{r, echo=FALSE}
-results_table <- data.frame(
-  Metric = c("Mean estimate LR", "Mean estimate PO", "SD LR", "SD PO",
-             "Mean SE LR", "Mean SE LRHW","Mean SE LRJN","Mean SE PO", "Mean SE POHW", "Mean SE POJN", "Mean SE POJN2"),
-  Value = c(mean(beta.LR), mean(beta.PO), sd(beta.LR), sd(beta.PO),
-            mean(SE.LR), mean(SE.LRHW),mean(SE.LRJN),mean(SE.PO), mean(SE.POHW), mean(SE.POJN), mean(SE.POJN2))
+```{r,echo=FALSE}
+results_table <- rbind(
+  Mean = colMeans(results_df, na.rm = TRUE),  
+  SD = apply(results_df, 2, sd, na.rm = TRUE)  
 )
 results_table
-
 ```
 
 The LR s.e. continues to greatly outperform the PO s.e. although this time they are significantly closer. The three PO s.e. continue to behave similarly, which to me points even more to homokedasticity due to how the regressors were created.
+
+```{r,echo=FALSE}
+# Convert results_df to long format for ggplot
+results_long <- melt(results_df[, c("SE.LR", "SE.LRHW", "SE.LRJN", "SE.PO", "SE.POHW", "SE.POJN")])
+
+# Identify JN SE variables
+JN_vars <- c("SE.LRJN", "SE.POJN")
+
+# Compute the 95th percentile **only** for JN SE variables
+quantiles_JN <- results_long %>%
+  filter(variable %in% JN_vars) %>%
+  group_by(variable) %>%
+  summarise(upper = quantile(value, 0.95, na.rm = TRUE))
+
+# Merge quantiles only for JN variables
+results_filtered <- results_long %>%
+  left_join(quantiles_JN, by = "variable") %>%
+  mutate(value = ifelse(variable %in% JN_vars & value > upper, NA, value)) %>%
+  filter(!is.na(value))  # Remove NA values from JN variables
+
+# Compute the standard deviation of beta.LR
+beta_LR_sd <- sd(results_df$beta.LR, na.rm = TRUE)
+
+# Plot histograms with individual y-axes
+ggplot(results_filtered, aes(x = value)) +
+  geom_histogram(binwidth = 0.1, fill = "blue", alpha = 0.6, color = "black") +
+  facet_wrap(~variable, scales = "free") +  # Free scales for both x and y axes
+  geom_vline(xintercept = beta_LR_sd, color = "red", linetype = "dashed", size = 1) + # Red vertical line
+  theme_minimal() +
+  labs(title = "Histograms of Standard Errors (Top 5% Removed for Jackknife)", 
+       x = "Value", y = "Frequency")
+```
 
 ### Case for p/n small (p/n=0.05)
 
@@ -230,6 +340,7 @@ m1 <- lm(Y ~ X)
 coef(m1)[1:6]
 
 ```
+
 We compute the estimate for X1 when partialling out (FWL theorem).
 ```{r,echo=FALSE}
 mY <- lm(Y ~ X[,-1])
@@ -252,46 +363,99 @@ coef(summary(m2))
 This time in particular X1's estimate is the worse out of the 5. It is worse than for the previous case where p/n=0.5, although in general the model worked better now. The SD of normal OLS and Partialling out now are very similar and the real value is inside the C.I.
 
 ```{r, echo=FALSE}
+# Detect available cores
+num_cores <- detectCores() - 1  # Use available cores minus one to avoid system overload
+cl <- makeCluster(num_cores)
+registerDoParallel(cl)
+
+# Number of simulations
 N.sim <- 1000
-beta.LR <- beta.PO <- SE.LR <- SE.PO <- SE.POHW <- SE.POJN <- SE.LRHW <- SE.LRJN <- SE.POJN2 <- c()
-for(i in 1:N.sim)
-{
-  beta <- rep(0.5, p)
+
+# Run parallel computation
+results <- foreach(i = 1:N.sim, .combine = rbind, .packages = c("sandwich", "boot")) %dopar% {
+  
   X <- replicate(p, rnorm(n)) 
-  Y <- X%*%beta + rnorm(n)
+  Y <- X %*% beta + rnorm(n)
+
+  # OLS Model
   m1 <- lm(Y ~ X)
   mY <- lm(Y ~ X[,-1])
   mX1 <- lm(X[,1] ~ X[,-1])
   Y.tilde <- mY$residuals
   X1.tilde <- mX1$residuals
-  m2 <- lm(Y.tilde ~ X1.tilde -1 ) 
-  beta.LR[i] <- coef(summary(m1))[2,1]
-  SE.LR[i] <- coef(summary(m1))[2,2]
-  SE.LRHW[i] <- sqrt(diag(vcovHC(m1, type = "HC0"))[2])# Huber-White SE
-  SE.LRJN[i] <- sqrt(diag(vcovHC(m1, type = "HC3"))[2])# jackknife 
-  beta.PO[i] <- coef(summary(m2))[1] 
-  SE.PO[i] <- coef(summary(m2))[2] 
-  SE.POHW[i] <- sqrt(vcovHC(m2, type = "HC0"))# Huber-White SE
-  SE.POJN[i] <- sqrt(vcovHC(m2, type = "HC3"))# jackknife 
+  m2 <- lm(Y.tilde ~ X1.tilde -1)
+
+  # Compute coefficients and standard errors
+  beta_LR <- coef(summary(m1))[2,1]
+  SE_LR <- coef(summary(m1))[2,2]
+  SE_LRHW <- sqrt(diag(vcovHC(m1, type = "HC0"))[2])  # Huber-White SE
+  SE_LRJN <- sqrt(diag(vcovHC(m1, type = "HC3"))[2])  # Jackknife SE
+  
+  beta_PO <- coef(summary(m2))[1]
+  SE_PO <- coef(summary(m2))[2]
+  SE_POHW <- sqrt(vcovHC(m2, type = "HC0"))  # Huber-White SE
+  SE_POJN <- sqrt(vcovHC(m2, type = "HC3"))  # Jackknife SE
+
+  # Jackknife Resampling
   data_list <- data.frame(Y = Y, X)
   jack_res <- boot(data = data_list, 
-                 statistic = jackknife_po_fn, 
-                 R = n,  # Leave-one-out resampling
-                 sim = "ordinary")
-  SE.POJN2[i] <- sqrt((n - 1) / n * var(jack_res$t))
-    
+                   statistic = jackknife_po_fn, 
+                   R = n,  
+                   sim = "ordinary")
+  SE_POJN2 <- sqrt((n - 1) / n * var(jack_res$t))
+  
+  # Return results as a row
+  c(beta_LR, SE_LR, SE_LRHW, SE_LRJN, beta_PO, SE_PO, SE_POHW, SE_POJN, SE_POJN2)
 }
+
+# Stop the parallel cluster
+stopCluster(cl)
+
+# Convert results to a data frame
+results_df <- as.data.frame(results)
+colnames(results_df) <- c("beta.LR", "SE.LR", "SE.LRHW", "SE.LRJN", "beta.PO", "SE.PO", "SE.POHW", "SE.POJN", "SE.POJN2")
+
 ```
 
-```{r, echo=FALSE}
-results_table <- data.frame(
-  Metric = c("Mean estimate LR", "Mean estimate PO", "SD LR", "SD PO",
-             "Mean SE LR", "Mean SE LRHW","Mean SE LRJN","Mean SE PO", "Mean SE POHW", "Mean SE POJN", "Mean SE POJN2"),
-  Value = c(mean(beta.LR), mean(beta.PO), sd(beta.LR), sd(beta.PO),
-            mean(SE.LR), mean(SE.LRHW),mean(SE.LRJN),mean(SE.PO), mean(SE.POHW), mean(SE.POJN), mean(SE.POJN2))
+```{r,echo=FALSE}
+results_table <- rbind(
+  Mean = colMeans(results_df, na.rm = TRUE),  
+  SD = apply(results_df, 2, sd, na.rm = TRUE)  
 )
 results_table
 ```
 
 Now that p/n can be considered small (although usually we would want p/n<0.1), the s.e. derived from the PO model are very similar to the usual s.e. and also to the monte carlo s.d. This little exercise clearly shows the problem of using inference when using PO if p/n is big. 
+
+```{r,echo=FALSE}
+# Convert results_df to long format for ggplot
+results_long <- melt(results_df[, c("SE.LR", "SE.LRHW", "SE.LRJN", "SE.PO", "SE.POHW", "SE.POJN")])
+
+# Identify JN SE variables
+JN_vars <- c("SE.LRJN", "SE.POJN")
+
+# Compute the 95th percentile **only** for JN SE variables
+quantiles_JN <- results_long %>%
+  filter(variable %in% JN_vars) %>%
+  group_by(variable) %>%
+  summarise(upper = quantile(value, 0.95, na.rm = TRUE))
+
+# Merge quantiles only for JN variables
+results_filtered <- results_long %>%
+  left_join(quantiles_JN, by = "variable") %>%
+  mutate(value = ifelse(variable %in% JN_vars & value > upper, NA, value)) %>%
+  filter(!is.na(value))  # Remove NA values from JN variables
+
+# Compute the standard deviation of beta.LR
+beta_LR_sd <- sd(results_df$beta.LR, na.rm = TRUE)
+
+# Plot histograms with individual y-axes
+ggplot(results_filtered, aes(x = value)) +
+  geom_histogram(binwidth = 0.1, fill = "blue", alpha = 0.6, color = "black") +
+  facet_wrap(~variable, scales = "free") +  # Free scales for both x and y axes
+  geom_vline(xintercept = beta_LR_sd, color = "red", linetype = "dashed", size = 1) + # Red vertical line
+  theme_minimal() +
+  labs(title = "Histograms of Standard Errors (Top 5% Removed for Jackknife)", 
+       x = "Value", y = "Frequency")
+```
 
